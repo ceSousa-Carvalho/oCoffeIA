@@ -1,2 +1,2 @@
 @echo off
-start "" powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0oCoffeIA.ps1"
+start "oCoffeIA" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0oCoffeIA.ps1"

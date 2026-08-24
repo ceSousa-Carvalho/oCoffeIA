@@ -84,6 +84,9 @@ if (!imagePath || !fs.existsSync(imagePath)) {
       log(`${whatsappPages.length - 1} aba(s) duplicada(s) do WhatsApp fechada(s).`);
     }
     if (!page.url().startsWith('https://web.whatsapp.com/')) {
+      await page.waitForURL(url => url.href.startsWith('https://web.whatsapp.com/'), { timeout: 15000 }).catch(() => {});
+    }
+    if (!page.url().startsWith('https://web.whatsapp.com/')) {
       await page.goto('https://web.whatsapp.com/', { waitUntil: 'domcontentloaded' });
     } else {
       await page.bringToFront();
@@ -210,12 +213,31 @@ if (!imagePath || !fs.existsSync(imagePath)) {
 
     const sendIcon = page.locator('[role="button"][aria-label^="Enviar "][aria-label*="item selecionado" i]:visible, [role="button"][aria-label^="Send "][aria-label*="item selected" i]:visible').last();
     await sendIcon.waitFor({ state: 'visible', timeout: 30000 });
-    const captionPreferred = page.locator('[contenteditable="true"][role="textbox"][aria-label="Digite uma mensagem"], [contenteditable="true"][role="textbox"][aria-label="Type a message" i], [contenteditable="true"][aria-label*="legenda" i], [contenteditable="true"][aria-label*="caption" i]').first();
-    const caption = await captionPreferred.isVisible().catch(() => false)
-      ? captionPreferred
-      : page.locator('div[contenteditable="true"]:visible').last();
-    await caption.click();
-    await caption.fill(message);
+    const captionCandidates = await page.locator('[contenteditable="true"]:visible, textarea:visible').elementHandles();
+    let caption = null;
+    for (const candidate of captionCandidates.reverse()) {
+      const interactable = await candidate.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        if (!box.width || !box.height) return false;
+        const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return top === element || element.contains(top) || (top && top.contains(element));
+      }).catch(() => false);
+      if (interactable) { caption = candidate; break; }
+    }
+    if (!caption) throw new Error('Campo de legenda visível do editor de mídia não encontrado.');
+    await caption.evaluate((element, text) => {
+      element.focus();
+      if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
+        if (setter) setter.call(element, text); else element.value = text;
+        element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      } else {
+        document.execCommand('selectAll', false, null);
+        document.execCommand('insertText', false, text);
+        if (!element.textContent) element.textContent = text;
+      }
+    }, message);
     if (dryRun) {
       await page.screenshot({ path: 'C:\\oCoffe\\whatsapp-preparo-teste.png', fullPage: true });
       log(`Teste de preparação concluído sem envio: ${path.basename(imagePath)}`);
@@ -225,7 +247,7 @@ if (!imagePath || !fs.existsSync(imagePath)) {
       }
       return;
     }
-    await sendIcon.click();
+    await sendIcon.evaluate(element => element.click());
     await page.waitForTimeout(3000);
     log(`Parcial enviada ao grupo ${groupName}: ${path.basename(imagePath)}`);
   } catch (error) {

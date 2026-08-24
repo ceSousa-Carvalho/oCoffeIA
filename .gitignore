@@ -6,8 +6,6 @@ Desktop.ini
 # Compilacao Java
 /bin/
 *.class
-/src/Helloworld.java
-/src/OpAritmetica.java
 
 # Dependencias restauraveis
 automation/browser/node_modules/

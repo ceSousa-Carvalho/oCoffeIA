@@ -1,0 +1,11 @@
+oCoffeIA 1.7.4 - Instalador Completo
+
+Aplicativo local para Windows.
+Não requer Claude, Codex, ChatGPT nem assinatura premium de IA.
+
+O instalador verifica e instala Node.js LTS, Google Chrome, Power BI Desktop
+e as dependências Playwright necessárias para a automação.
+
+Fluxos:
+JMS -> planilha XLSX -> base local -> Power BI -> análise -> revisão -> WhatsApp.
+Líder -> Expedido, mas não chegou -> filtros -> Registro POD -> planilha operacional.

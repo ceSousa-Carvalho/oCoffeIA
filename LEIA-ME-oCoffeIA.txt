@@ -1,0 +1,82 @@
+oCoffeIA 1.7.2 - Windows - Gestão de KPI
+========================================
+
+O oCoffeIA funciona localmente no Windows e NÃO precisa de Claude, Codex,
+ChatGPT, chave de API ou assinatura premium de IA.
+
+PODE SER INSTALADO EM OUTRAS MÁQUINAS?
+Sim. Cada computador terá sua própria configuração, agendamentos e sessões.
+Não copie perfis, cookies, tokens ou senhas de outro computador.
+
+PRÉ-REQUISITOS EM CADA COMPUTADOR
+- Windows 10 ou 11.
+- Acesso à internet e autorização para entrar no JMS.
+- Google Chrome.
+- Node.js LTS.
+- Power BI Desktop.
+- Feishu Desktop, quando o relatório de SLA for usado.
+- Arquivo Gestão de KPI.pbix e suas pastas de base no computador.
+- Acesso autorizado aos grupos do WhatsApp e do Feishu.
+- Usuário conectado ao Windows durante as execuções e confirmações.
+
+Internet sozinha não é suficiente: os programas e o arquivo PBIX acima também
+precisam estar disponíveis na máquina.
+
+COMO INSTALAR
+1. Copie e extraia todo o ZIP no computador.
+2. Dê dois cliques em INSTALAR-oCoffeIA.cmd.
+3. Se o Windows negar acesso às pastas do disco C:, execute como administrador.
+4. Informe o link e o nome exato do grupo do WhatsApp.
+5. Informe os horários ou pressione Enter para executar a cada 1 hora.
+6. Use o atalho oCoffeIA criado na Área de Trabalho.
+
+PRIMEIRO USO EM CADA COMPUTADOR
+- O usuário conclui o login/CAPTCHA do JMS quando solicitado.
+- O usuário conecta o WhatsApp Web quando solicitado.
+- O usuário entra no Feishu Desktop quando utilizar o SLA.
+- Senhas, CAPTCHA, tokens e códigos temporários não são incluídos no pacote.
+
+CONFIGURAÇÃO
+Abra o atalho oCoffeIA para:
+- programar horários;
+- configurar o grupo;
+- configurar o PBIX e a pasta das planilhas;
+- executar uma atualização imediatamente;
+- pausar ou ativar o automático;
+- revisar a imagem antes de reportar;
+- programar o SLA diário, com histórico mínimo de 20 dias;
+- revisar e confirmar o SLA antes de enviá-lo ao Feishu.
+
+SLA DIÁRIO
+- JMS: Indicadores de Negócios > Prazo > Entrega realizada.
+- Data final: dia anterior à execução.
+- Os dois filtros do Power BI recebem a mesma data final do JMS.
+- Pasta: Base_vencimentos.
+- Power BI: tabela BD_D1 e página SLA - VENCIMENTO.
+- Feishu: o usuário confere o grupo, a imagem e a mensagem antes de enviar.
+
+ACOMPANHAMENTO DOS ENTREGADORES
+- Os dois filtros do Power BI recebem a data do relatório baixado.
+- A mensagem usa o horário real do download.
+- O WhatsApp só envia depois da confirmação do usuário.
+
+CONFIGURAÇÃO ATIVA
+C:\oCoffe\config\gestao-kpi.json
+
+ROBÔ-MASCOTE OC-01
+- É um personagem exclusivo do oCoffeIA e usa a camisa da J&T Express.
+- Anda, brinca e exibe mensagens aleatórias sem bloquear os botões da interface.
+- Dorme em sua cama após 2 minutos sem atividade do usuário e acorda no retorno.
+- Faz lanche às 09:00, almoço às 12:00 e merenda às 15:00.
+- O botão MASCOTE: ON/OFF salva a preferência no computador.
+- Existe somente uma instância do oCoffeIA e do OC-01 por usuário.
+- Toda a animação funciona localmente e não utiliza serviço de IA.
+- Braços e pernas se alternam durante a caminhada, os olhos piscam e a cabeça balança.
+- Ao brincar, o OC-01 escolhe um botão visível, caminha até ele e aponta sua utilidade.
+- Alertas encontrados no log aparecem em vermelho; dicas úteis aparecem no balão.
+- O painel principal agora ocupa toda a janela com agenda, atividade recente e saúde da estação.
+- Clique no corpo ou no balão do OC-01 para conversar, pedir dicas, brincar, abrir o diagnóstico, descansar ou ocultá-lo.
+
+DESINSTALAR
+Dê dois cliques em DESINSTALAR-oCoffeIA.cmd. A tarefa automática será removida
+e os dados locais serão preservados para recuperação.

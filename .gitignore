@@ -1,0 +1,39 @@
+# Windows e editor
+.vscode/
+Thumbs.db
+Desktop.ini
+
+# Compilacao Java
+/bin/
+*.class
+/src/Helloworld.java
+/src/OpAritmetica.java
+
+# Dependencias restauraveis
+automation/browser/node_modules/
+
+# Dados locais, sessoes e credenciais
+/.env
+/.env.*
+!/.env.example
+/config/
+/logs/
+/reports/
+/chrome-profile/
+/whatsapp-profile/
+automation/**/config.local.*
+automation/**/secrets.*
+*.log
+
+# Bancos, planilhas e arquivos operacionais locais
+*.pbix
+*.xlsx
+*.xls
+*.csv
+!automation/templates/*.xlsx
+
+# Pacotes e capturas gerados na raiz
+/*.zip
+/ocoffe-*.png
+/powerbi-*.png
+/screen-*.png

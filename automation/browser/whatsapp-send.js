@@ -248,7 +248,13 @@ if (!imagePath || !fs.existsSync(imagePath)) {
       return;
     }
     await sendIcon.evaluate(element => element.click());
-    await page.waitForTimeout(3000);
+    await sendIcon.waitFor({ state: 'hidden', timeout: 30000 });
+    const firstLine = message.split(/\r?\n/).find(line => line.trim())?.trim() || '';
+    if (firstLine) {
+      const sentCaption = page.locator('#main [data-id] span', { hasText: firstLine }).last();
+      await sentCaption.waitFor({ state: 'visible', timeout: 30000 });
+    }
+    await page.waitForTimeout(1500);
     log(`Parcial enviada ao grupo ${groupName}: ${path.basename(imagePath)}`);
   } catch (error) {
     log(`ERRO: ${error.stack || error.message}`);

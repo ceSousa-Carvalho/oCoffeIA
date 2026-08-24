@@ -1,18 +1,33 @@
-## Getting Started
+# oCoffeIA
 
-Welcome to the VS Code Java world. Here is a guideline to help you get started to write Java code in Visual Studio Code.
+Assistente local para Windows que automatiza o fluxo operacional JMS → XLSX → Power BI → revisão → WhatsApp.
 
-## Folder Structure
+## Recursos
 
-The workspace contains two folders by default, where:
+- Reutiliza sessões separadas do Chrome para JMS e WhatsApp.
+- Aguarda o download mais recente do Centro de Downloads.
+- Atualiza e captura a página configurada do Power BI.
+- Exige confirmação humana antes do envio ao WhatsApp.
+- Envia o print como foto normal, acompanhado da mensagem configurada.
+- Controla uma fila única e tenta novamente etapas temporariamente indisponíveis.
+- Registra histórico das parciais e valida o envio na conversa.
+- Acompanha rotas que precisam atingir 100% em até seis horas.
+- Verifica atualizações publicadas neste repositório sem apagar configurações ou logins.
 
-- `src`: the folder to maintain sources
-- `lib`: the folder to maintain dependencies
+## Instalação
 
-Meanwhile, the compiled output files will be generated in the `bin` folder by default.
+1. Baixe o projeto ou o pacote de instalação.
+2. Execute `INSTALAR-oCoffeIA.cmd`.
+3. Autorize a instalação dos componentes solicitados.
+4. Informe o PBIX, o grupo do WhatsApp e os horários quando solicitado.
+5. Faça login no JMS e no WhatsApp na primeira utilização.
 
-> If you want to customize the folder structure, open `.vscode/settings.json` and update the related settings there.
+Node.js, Chrome, Power BI e as dependências do navegador são verificados pelo instalador. Perfis, cookies, tokens, planilhas operacionais e o PBIX não são publicados no GitHub.
 
-## Dependency Management
+## Dados locais
 
-The `JAVA PROJECTS` view allows you to manage your dependencies. More details can be found [here](https://github.com/microsoft/vscode-java-dependency#manage-dependencies).
+O aplicativo é instalado em `C:\oCoffe`. Configurações permanecem em `C:\oCoffe\config`, relatórios em `C:\oCoffe\reports` e sessões do Chrome em perfis locais separados.
+
+## Segurança
+
+Nenhuma mensagem é enviada antes da revisão e confirmação do usuário. Não publique arquivos de configuração, perfis do navegador, logs ou relatórios empresariais.

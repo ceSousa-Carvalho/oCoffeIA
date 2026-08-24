@@ -1,4 +1,4 @@
-oCoffeIA 1.7.4 - Instalador Completo
+oCoffeIA 1.8.0 - Instalador Completo
 
 Aplicativo local para Windows.
 Não requer Claude, Codex, ChatGPT nem assinatura premium de IA.

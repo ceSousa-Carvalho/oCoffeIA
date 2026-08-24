@@ -19,7 +19,7 @@ if (-not $script:InstanceCreated) {
 
 $script:Root = 'C:\oCoffe'
 $script:ConfigPath = Join-Path $script:Root 'config\gestao-kpi.json'
-$script:Version = '1.7.4'
+$script:Version = '1.8.0'
 if (Test-Path -LiteralPath $script:ConfigPath) {
     try {
         $versionConfig = Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -263,7 +263,14 @@ function Refresh-Dashboard {
             }
         }
         $paths = Get-Paths
-        $script:FooterStatus.Text = "PBIX: $(if(Test-Path -LiteralPath $paths.Pbix){'OK'}else{'NÃO ENCONTRADO'})   |   BASE: $(if(Test-Path -LiteralPath $paths.Base){'OK'}else{'CRIAR/CONFIGURAR'})   |   $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')"
+        $statePath = Join-Path $script:ReportPath 'estado-atualizacao.json'
+        $flowText = 'ocioso'
+        if (Test-Path -LiteralPath $statePath) {
+            try { $flow = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json; $flowText = "$($flow.stage): $($flow.status)" } catch {}
+        }
+        $latestBase = Get-ChildItem -LiteralPath $paths.Base -Filter '*.xlsx' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $baseText = if($latestBase){"$($latestBase.Name) • $($latestBase.LastWriteTime.ToString('HH:mm'))"}else{'SEM PLANILHA'}
+        $script:FooterStatus.Text = "FLUXO: $flowText   |   BASE: $baseText   |   $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')"
         Refresh-ConfigurationSummary
         Refresh-OperationsCenter $paths
     } catch {
@@ -320,14 +327,19 @@ function Refresh-OperationsCenter($Paths) {
     $ready = @($health | Where-Object { $_[1] }).Count
     $performanceAlertFile = Join-Path $script:ReportPath 'alerta-desempenho.json'
     $performanceAlerts = @()
+    $performanceRoutes = @()
     if (Test-Path -LiteralPath $performanceAlertFile) {
         try {
             $performanceResult = Get-Content -LiteralPath $performanceAlertFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ([datetime]$performanceResult.generatedAt -ge [datetime]::Today) { $performanceAlerts = @($performanceResult.alertas) }
+            if ([datetime]$performanceResult.generatedAt -ge [datetime]::Today) { $performanceAlerts = @($performanceResult.alertas); $performanceRoutes = @($performanceResult.rotas) }
         } catch {}
     }
+    $routesInProgress = @($performanceRoutes | Where-Object { $_.status -eq 'em andamento' })
     $script:OC01Advice.Text = if ($performanceAlerts.Count -gt 0) {
         "OC-01: ATENÇÃO — $($performanceAlerts.Count) rota(s) abaixo do ritmo. Revise o alerta de desempenho."
+    } elseif ($routesInProgress.Count -gt 0) {
+        $nextDeadline = $routesInProgress | Sort-Object horasRestantes | Select-Object -First 1
+        "OC-01: $($routesInProgress.Count) rota(s) em andamento. Próximo prazo: $($nextDeadline.entregador), faltam $($nextDeadline.horasRestantes)h e $($nextDeadline.faltam) pedido(s)."
     } elseif ($ready -eq $health.Count) {
         'OC-01: estação pronta. Vou acompanhar as próximas missões.'
     } else {
@@ -346,6 +358,15 @@ function Start-MainUpdate {
     Write-Terminal 'Sequência iniciada: JMS > XLSX > Power BI > revisão.' $script:Colors.Green
     Show-OCoffeeMessage "Atualização iniciada.`r`n`r`nAo final, você verá a tela de revisão antes do WhatsApp."
     Refresh-Dashboard
+}
+
+function Start-SoftwareUpdate {
+    $updater = Join-Path $script:Root 'tools\Atualizar-oCoffeIA.ps1'
+    if (-not (Test-Path -LiteralPath $updater)) { Show-OCoffeeMessage 'Componente de atualização não encontrado.' 'Atualização' ([Windows.Forms.MessageBoxIcon]::Warning); return }
+    $answer = [Windows.Forms.MessageBox]::Show('Verificar e instalar a versão mais recente publicada no GitHub? Configurações e logins serão preservados.', 'Atualizar oCoffeIA', [Windows.Forms.MessageBoxButtons]::YesNo, [Windows.Forms.MessageBoxIcon]::Question)
+    if ($answer -ne [Windows.Forms.DialogResult]::Yes) { return }
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$updater`"" -Wait
+    Show-OCoffeeMessage 'Verificação concluída. Reinicie o oCoffeIA caso uma nova versão tenha sido instalada.' 'Atualização'
 }
 
 function Start-SlaUpdate {
@@ -1199,6 +1220,7 @@ $script:ConfigSummary.BackColor = $script:Colors.Surface
 $script:ConfigSummary.ForeColor = $script:Colors.Green
 $script:ConfigSummary.BorderStyle = 'FixedSingle'
 $script:ConfigSummary.Font = New-Object Drawing.Font('Consolas', 10)
+[void](New-Button $configuration 'VERIFICAR ATUALIZAÇÃO NO GITHUB' 777 530 235 48 { Start-SoftwareUpdate } $script:Colors.Green 'Baixa a versão mais recente e preserva configurações e sessões.')
 $script:ConfigSummary.ScrollBars = 'Vertical'
 $configuration.Controls.Add($script:ConfigSummary)
 [void](New-Button $configuration 'ABRIR ARQUIVO JSON' 18 532 210 40 { if(Test-Path $script:ConfigPath){Start-Process notepad.exe -ArgumentList ('"{0}"' -f $script:ConfigPath)} } $script:Colors.Muted)

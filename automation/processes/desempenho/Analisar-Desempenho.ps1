@@ -82,7 +82,8 @@ try {
             $route = $routes[$courier]
             $route.Total++
             $signature = ([string]$values[$row, $signatureColumn]).Trim()
-            if ($signature -and $signature -notmatch '(?i)não entregue|nao entregue|devolu') { $route.Delivered++ }
+            $signatureKey = Normalize-Header $signature
+            if ($signatureKey -match 'recebimento|assinaturanormal|^entregue$' -and $signatureKey -notmatch 'naoentregue|devolu|cancel') { $route.Delivered++ }
             $departure = Convert-ExcelDate $values[$row, $departureColumn]
             if ($departure -and (-not $route.Departure -or $departure -lt $route.Departure)) { $route.Departure = $departure }
         }
@@ -97,22 +98,26 @@ try {
     }
 
     $now = Get-Date
-    $alerts = foreach ($route in $routes.Values) {
+    $routeStatuses = foreach ($route in $routes.Values) {
         if (-not $route.Departure -or $route.Total -lt $minimumOrders) { continue }
         $hours = ($now - [datetime]$route.Departure).TotalHours
-        if ($hours -lt $minimumHours -or $hours -lt 0) { continue }
+        if ($hours -lt 0) { continue }
         $percent = if ($route.Total) { [math]::Round(($route.Delivered * 100.0) / $route.Total, 2) } else { 0 }
-        if ($percent -lt $minimumPercent) {
-            [pscustomobject]@{
-                entregador = $route.Courier
-                saida = ([datetime]$route.Departure).ToString('dd/MM/yyyy HH:mm')
-                horasDeRota = [math]::Round($hours, 1)
-                pedidos = $route.Total
-                entregues = $route.Delivered
-                percentual = $percent
-            }
+        $remaining = [math]::Max(0, $minimumHours - $hours)
+        [pscustomobject]@{
+            entregador = $route.Courier
+            saida = ([datetime]$route.Departure).ToString('dd/MM/yyyy HH:mm')
+            horasDeRota = [math]::Round($hours, 1)
+            horasRestantes = [math]::Round($remaining, 1)
+            pedidos = $route.Total
+            entregues = $route.Delivered
+            faltam = [math]::Max(0, $route.Total - $route.Delivered)
+            percentual = $percent
+            status = if ($percent -ge $minimumPercent) { 'concluida' } elseif ($hours -ge $minimumHours) { 'atrasada' } else { 'em andamento' }
         }
     }
+    $routeStatuses = @($routeStatuses | Sort-Object status, horasRestantes, percentual)
+    $alerts = @($routeStatuses | Where-Object { $_.status -eq 'atrasada' })
     $alerts = @($alerts | Sort-Object percentual, horasDeRota)
 
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
@@ -122,6 +127,7 @@ try {
         sourceFile = $source.FullName
         whatsappResponsavel = [string]$config.whatsappResponsavel
         regra = [ordered]@{ percentualMinimo = $minimumPercent; minimoHorasRota = $minimumHours; minimoPedidos = $minimumOrders }
+        rotas = $routeStatuses
         alertas = $alerts
     }
     $result | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resultFile -Encoding UTF8

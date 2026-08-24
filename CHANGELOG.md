@@ -2,6 +2,17 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.0] - 2026-08-24
+
+- Adicionada fila única com espera controlada para atualizações simultâneas.
+- Adicionadas retentativas automáticas no JMS, Power BI, captura e WhatsApp.
+- Adicionado estado estruturado do fluxo para acompanhamento em tempo real.
+- Adicionada validação do envio na conversa e histórico JSONL das parciais.
+- Corrigido o cálculo de entregas pela marca de assinatura.
+- Adicionado acompanhamento de rotas concluídas, em andamento e atrasadas no prazo de seis horas.
+- Adicionado atualizador pelo GitHub com preservação de configurações e logins.
+- Removidas dependências restauráveis do pacote para reduzir seu tamanho.
+
 ## [1.7.2] - 2026-08-23
 
 - Corrigido o aviso de arquivo não encontrado ao manter o modelo Excel já configurado.

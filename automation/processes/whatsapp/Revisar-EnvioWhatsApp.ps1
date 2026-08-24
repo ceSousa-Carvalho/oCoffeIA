@@ -12,6 +12,7 @@ Add-Type -AssemblyName System.Drawing
 $configFile = 'C:\oCoffe\config\gestao-kpi.json'
 $nodeScript = 'C:\oCoffe\browser\whatsapp-send.js'
 $logFile = 'C:\oCoffe\whatsapp.log'
+$historyFile = 'C:\oCoffe\reports\historico-parciais.jsonl'
 $groupName = 'Entregadores J&T - THE'
 $messageTemplate = "@all Segue a parcial das {horario}.`r`n`r`nAtualização gerada pelo Assistente oCoffeIA"
 
@@ -127,6 +128,7 @@ $form.Controls.Add($cancel)
 
 $cancel.Add_Click({
     Add-Content -LiteralPath $logFile -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Envio cancelado pelo usuário: $ImagePath"
+    [ordered]@{ timestamp=(Get-Date).ToString('o'); status='cancelado'; imagePath=$ImagePath; reportTime=$reportDate.ToString('o'); group=$groupName; message=$messageBox.Text } | ConvertTo-Json -Compress | Add-Content -LiteralPath $historyFile -Encoding UTF8
     $form.Close()
 })
 
@@ -144,6 +146,7 @@ $sendTimer.Add_Tick({
     $script:sendJob = $null
 
     if ($jobState -eq 'Completed' -and $result.Success) {
+        [ordered]@{ timestamp=(Get-Date).ToString('o'); status='enviado'; imagePath=$ImagePath; reportTime=$reportDate.ToString('o'); group=$groupName; message=$messageBox.Text } | ConvertTo-Json -Compress | Add-Content -LiteralPath $historyFile -Encoding UTF8
         $status.Text = 'Parcial enviada com sucesso.'
         $status.ForeColor = [Drawing.Color]::LightGreen
         $form.Refresh()
@@ -160,6 +163,7 @@ $sendTimer.Add_Tick({
     } else {
         'Consulte C:\oCoffe\whatsapp.log.'
     }
+    [ordered]@{ timestamp=(Get-Date).ToString('o'); status='erro'; imagePath=$ImagePath; reportTime=$reportDate.ToString('o'); group=$groupName; message=$messageBox.Text; detail=$detail } | ConvertTo-Json -Compress | Add-Content -LiteralPath $historyFile -Encoding UTF8
     $status.Text = "Falha no envio: $detail"
     $status.ForeColor = [Drawing.Color]::OrangeRed
     [Windows.Forms.MessageBox]::Show("Não foi possível enviar.`r`n`r`n$detail", 'oCoffeIA') | Out-Null
@@ -186,11 +190,17 @@ $confirm.Add_Click({
             try {
                 try { $ownsMutex = $sendMutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $ownsMutex = $true }
                 if (-not $ownsMutex) { throw 'Já existe outro envio do oCoffeIA em andamento.' }
-                $nodeOutput = (& $NodePath $NodeScript $Image $Group $Message 2>&1 | Out-String).Trim()
-                $nodeExitCode = $LASTEXITCODE
+                $nodeOutput = ''
+                $nodeExitCode = 1
+                for ($attempt = 1; $attempt -le 3; $attempt++) {
+                    $nodeOutput = (& $NodePath $NodeScript $Image $Group $Message 2>&1 | Out-String).Trim()
+                    $nodeExitCode = $LASTEXITCODE
+                    if ($nodeExitCode -eq 0) { break }
+                    if ($attempt -lt 3) { Start-Sleep -Seconds 5 }
+                }
                 if ($nodeExitCode -ne 0) {
                     $detail = if ([string]::IsNullOrWhiteSpace($nodeOutput)) { 'Consulte C:\oCoffe\whatsapp.log.' } else { $nodeOutput }
-                    throw "O WhatsApp terminou com código $nodeExitCode.`r`n`r`n$detail"
+                    throw "O WhatsApp falhou após 3 tentativas.`r`n`r`n$detail"
                 }
                 [pscustomobject]@{ Success = $true; Detail = '' }
             } catch {

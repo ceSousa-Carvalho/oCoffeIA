@@ -99,7 +99,7 @@ try {
 
     $now = Get-Date
     $routeStatuses = foreach ($route in $routes.Values) {
-        if (-not $route.Departure -or $route.Total -lt $minimumOrders) { continue }
+        if (-not $route.Departure) { continue }
         $hours = ($now - [datetime]$route.Departure).TotalHours
         if ($hours -lt 0) { continue }
         $percent = if ($route.Total) { [math]::Round(($route.Delivered * 100.0) / $route.Total, 2) } else { 0 }
@@ -113,15 +113,17 @@ try {
             entregues = $route.Delivered
             faltam = [math]::Max(0, $route.Total - $route.Delivered)
             percentual = $percent
+            elegivelAlerta = ($route.Total -ge $minimumOrders)
             status = if ($percent -ge $minimumPercent) { 'concluida' } elseif ($hours -ge $minimumHours) { 'atrasada' } else { 'em andamento' }
         }
     }
     $routeStatuses = @($routeStatuses | Sort-Object status, horasRestantes, percentual)
-    $alerts = @($routeStatuses | Where-Object { $_.status -eq 'atrasada' })
+    $alerts = @($routeStatuses | Where-Object { $_.status -eq 'atrasada' -and $_.elegivelAlerta })
     $alerts = @($alerts | Sort-Object percentual, horasDeRota)
 
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
     $resultFile = Join-Path $reportDir 'alerta-desempenho.json'
+    $finalReportFile = Join-Path $reportDir 'relatorio-final.json'
     $result = [ordered]@{
         generatedAt = $now.ToString('o')
         sourceFile = $source.FullName
@@ -130,7 +132,13 @@ try {
         rotas = $routeStatuses
         alertas = $alerts
     }
-    $result | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resultFile -Encoding UTF8
+    $resultJson = $result | ConvertTo-Json -Depth 6
+    $resultJson | Set-Content -LiteralPath $resultFile -Encoding UTF8
+    # O arquivo final só é trocado depois que toda a análise terminou. Assim, a
+    # interface mantém a última atualização válida enquanto a próxima é gerada.
+    $finalStaging = "$finalReportFile.novo"
+    $resultJson | Set-Content -LiteralPath $finalStaging -Encoding UTF8
+    Move-Item -LiteralPath $finalStaging -Destination $finalReportFile -Force
     Write-PerformanceLog "Análise concluída: $($alerts.Count) entregador(es) abaixo da regra. Fonte: $($source.Name)"
 
     if ($alerts.Count -gt 0 -and -not $NoReview -and $config.whatsappResponsavel -and (Test-Path -LiteralPath $reviewScript)) {

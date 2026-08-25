@@ -201,7 +201,7 @@ async function setToday(page) {
     log(`ERRO: ${error.stack || error.message}`);
     process.exitCode = 1;
   } finally {
-    disconnectJmsSession(browser);
+    await disconnectJmsSession(browser);
   }
 })().then(() => process.exit(process.exitCode || 0), error => {
   log(`ERRO FATAL: ${error.stack || error.message}`);

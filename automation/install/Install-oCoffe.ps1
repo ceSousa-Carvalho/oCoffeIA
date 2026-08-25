@@ -36,6 +36,8 @@ $browserOrigem = Join-Path $origem 'browser'
 $browserDestino = Join-Path $Destino 'browser'
 $orquestradorOrigem = Join-Path $origem 'Executar-oCoffe.ps1'
 $orquestradorDestino = Join-Path $Destino 'Executar-oCoffe.ps1'
+$manualPowerBiOrigem = Join-Path $origem 'Executar-PowerBI-Manual.ps1'
+$manualPowerBiDestino = Join-Path $Destino 'Executar-PowerBI-Manual.ps1'
 $orquestradorSlaOrigem = Join-Path $origem 'Executar-SLA.ps1'
 $orquestradorSlaDestino = Join-Path $Destino 'Executar-SLA.ps1'
 $existingConfig = if (Test-Path -LiteralPath $configFile) {
@@ -89,6 +91,10 @@ if (-not (Test-Path -LiteralPath (Join-Path $browserDestino 'node_modules\playwr
 }
 $orquestradorConteudo = Get-Content -LiteralPath $orquestradorOrigem -Raw -Encoding UTF8
 Set-Content -LiteralPath $orquestradorDestino -Value $orquestradorConteudo -Encoding UTF8
+if (Test-Path -LiteralPath $manualPowerBiOrigem) {
+    $manualPowerBiConteudo = Get-Content -LiteralPath $manualPowerBiOrigem -Raw -Encoding UTF8
+    Set-Content -LiteralPath $manualPowerBiDestino -Value $manualPowerBiConteudo -Encoding UTF8
+}
 $orquestradorSlaConteudo = Get-Content -LiteralPath $orquestradorSlaOrigem -Raw -Encoding UTF8
 Set-Content -LiteralPath $orquestradorSlaDestino -Value $orquestradorSlaConteudo -Encoding UTF8
 Copy-Item -LiteralPath (Join-Path $cliOrigem 'ocoffe.cmd') -Destination $cliDestino -Force
@@ -168,7 +174,7 @@ $baseDir = Join-Path $ProjetoKpi 'Base_Gestão_de_pedidos_'
 $powerBi = Join-Path $ProjetoKpi 'Gestão de KPI.pbix'
 $logDir = Join-Path $ProjetoKpi 'Automacao'
 $config = [ordered]@{
-    versao = '1.8.0'
+    versao = '1.8.2'
     jmsUrl = if ($existingConfig.jmsUrl) { [string]$existingConfig.jmsUrl } else { 'https://jmsbr.jtjms-br.com/index' }
     chrome = $chromeDetectado
     jmsBrowser = $chromeDetectado

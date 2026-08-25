@@ -44,8 +44,13 @@ async function getJmsSession({ chrome, profile, jmsUrl, log }) {
   return { browser, context, page };
 }
 
-function disconnectJmsSession(browser) {
-  if (browser && browser.isConnected()) browser._connection.close();
+async function disconnectJmsSession(browser) {
+  if (!browser || !browser.isConnected()) return;
+  // O perfil preserva cookies e login no disco. Encerrar o Chrome controlado
+  // após cada operação libera memória sem exigir novo login na próxima abertura.
+  await browser.close().catch(() => {
+    if (browser.isConnected()) browser._connection.close();
+  });
 }
 
 module.exports = { getJmsSession, disconnectJmsSession };

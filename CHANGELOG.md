@@ -2,6 +2,22 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.2] - 2026-08-25
+
+- Adicionado modo manual para escolher uma planilha JMS e atualizar somente o Power BI.
+- Adicionada compatibilidade com o PBIX legado e normalização automática do nome da aba exportada.
+- Corrigido o reconhecimento de páginas ocultas em português no Power BI.
+- Corrigida a medida de pedidos não entregues no SLA.
+- Incluído o PBIX compatível no instalador completo para novas máquinas.
+
+## [1.8.1] - 2026-08-24
+
+- Adicionada a aba fixa **Relatório final** na interface.
+- Exibidas todas as rotas com saída, horas em rota, entregas, percentual e status.
+- Mantido o último relatório válido na tela até a próxima atualização terminar com sucesso.
+- Integrada a renovação do relatório ao ciclo horário de JMS e Power BI.
+- Mantido o limite mínimo de pedidos somente para o disparo de alertas.
+
 ## [1.8.0] - 2026-08-24
 
 - Adicionada fila única com espera controlada para atualizações simultâneas.

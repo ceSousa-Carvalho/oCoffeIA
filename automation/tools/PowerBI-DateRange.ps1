@@ -41,10 +41,10 @@ function Select-PowerBIReportPage {
         [Windows.Automation.ControlType]::TabItem
     )
     $tabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
-    $normalizedTarget = (($PageName -replace '^Hidden\s*', '') -replace '\s+', '').ToUpperInvariant()
+    $normalizedTarget = (($PageName -replace '^(?:Hidden|Ocult[oa])\s*', '') -replace '\s+', '').ToUpperInvariant()
     for ($index = 0; $index -lt $tabs.Count; $index++) {
         $tab = $tabs.Item($index)
-        $normalizedName = (([string]$tab.Current.Name -replace '^Hidden\s*', '') -replace '\s+', '').ToUpperInvariant()
+        $normalizedName = (([string]$tab.Current.Name -replace '^(?:Hidden|Ocult[oa])\s*', '') -replace '\s+', '').ToUpperInvariant()
         if ($normalizedName -ne $normalizedTarget) { continue }
         $pattern = $null
         if (-not $tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$pattern)) {

@@ -128,6 +128,6 @@ async function setDateRange(page, start, end) {
     if (page) await page.screenshot({ path: path.join(logDir, 'erro-sla-jms.png'), fullPage: true }).catch(() => {});
     process.exitCode = 1;
   } finally {
-    disconnectJmsSession(browser);
+    await disconnectJmsSession(browser);
   }
 })().then(() => process.exit(process.exitCode || 0), () => process.exit(1));

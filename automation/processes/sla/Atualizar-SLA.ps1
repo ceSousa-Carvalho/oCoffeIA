@@ -53,6 +53,7 @@ if (-not $pbi) {
     $pbi = Get-Process PBIDesktop -ErrorAction SilentlyContinue | Where-Object MainWindowTitle -like '*Gestão de KPI*' | Select-Object -First 1
 }
 if (-not $pbi) { throw 'O Power BI não abriu dentro do tempo esperado.' }
+try { $pbi.PriorityClass = 'BelowNormal' } catch {}
 
 $engine = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msmdsrv.exe' -and $_.ParentProcessId -eq $pbi.Id } | Select-Object -First 1
 if (-not $engine) { throw 'Mecanismo de dados do Power BI não encontrado.' }
@@ -78,7 +79,7 @@ $root = [Windows.Automation.AutomationElement]::FromHandle($pbi.MainWindowHandle
 $tabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TabItem)))
 $pageName = $(if ($config.slaPaginaPowerBi) { [string]$config.slaPaginaPowerBi } else { 'SLA - VENCIMENTO' })
 $tab = $null
-for ($i=0; $i -lt $tabs.Count; $i++) { if (($tabs.Item($i).Current.Name -replace '^Hidden\s*','') -eq $pageName) { $tab=$tabs.Item($i); break } }
+for ($i=0; $i -lt $tabs.Count; $i++) { if (($tabs.Item($i).Current.Name -replace '^(?:Hidden|Ocult[oa])\s*','') -eq $pageName) { $tab=$tabs.Item($i); break } }
 if (-not $tab) { throw "A página $pageName não foi encontrada." }
 $selection=$null; [void]$tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern,[ref]$selection); ([Windows.Automation.SelectionItemPattern]$selection).Select()
 Start-Sleep -Seconds 3

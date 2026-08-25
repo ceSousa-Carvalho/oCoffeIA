@@ -153,5 +153,5 @@ async function newestDownloadRow(page, dialog, minimumTime) {
     log(`ERRO EXPORTAÇÃO: ${error.stack || error.message}`);
     if (page) await page.screenshot({ path: path.join(logDir, 'erro-expedido-export.png'), fullPage: true }).catch(() => {});
     process.exitCode = 1;
-  } finally { disconnectJmsSession(browser); }
+  } finally { await disconnectJmsSession(browser); }
 })().then(() => process.exit(process.exitCode || 0), () => process.exit(1));

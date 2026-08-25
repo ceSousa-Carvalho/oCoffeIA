@@ -19,7 +19,7 @@ if (-not $script:InstanceCreated) {
 
 $script:Root = 'C:\oCoffe'
 $script:ConfigPath = Join-Path $script:Root 'config\gestao-kpi.json'
-$script:Version = '1.8.0'
+$script:Version = '1.8.1'
 if (Test-Path -LiteralPath $script:ConfigPath) {
     try {
         $versionConfig = Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -273,6 +273,7 @@ function Refresh-Dashboard {
         $script:FooterStatus.Text = "FLUXO: $flowText   |   BASE: $baseText   |   $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')"
         Refresh-ConfigurationSummary
         Refresh-OperationsCenter $paths
+        Refresh-FinalReport
     } catch {
         Set-Card 'auto' 'ERRO' $_.Exception.Message $script:Colors.Red
     }
@@ -358,6 +359,86 @@ function Start-MainUpdate {
     Write-Terminal 'Sequência iniciada: JMS > XLSX > Power BI > revisão.' $script:Colors.Green
     Show-OCoffeeMessage "Atualização iniciada.`r`n`r`nAo final, você verá a tela de revisão antes do WhatsApp."
     Refresh-Dashboard
+}
+
+function Open-JmsManual {
+    $paths = Get-Paths
+    $edgeCandidates = @(
+        'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+        'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\Application\msedge.exe')
+    )
+    $edge = $edgeCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $edge) {
+        Show-OCoffeeMessage 'Microsoft Edge não foi encontrado. Instale o Edge para usar o acesso manual separado.' 'JMS manual' ([Windows.Forms.MessageBoxIcon]::Warning)
+        return
+    }
+
+    # O perfil manual não compartilha arquivos com o perfil do robô. Isso
+    # permite consultar o JMS no Edge enquanto o Chrome segue reservado para
+    # os downloads automáticos.
+    $manualProfile = 'C:\oCoffe\edge-jms-profile'
+    if (-not (Test-Path -LiteralPath $manualProfile)) {
+        New-Item -ItemType Directory -Path $manualProfile -Force | Out-Null
+    }
+    Start-Process -FilePath $edge -ArgumentList @(
+        "--user-data-dir=$manualProfile",
+        '--new-window',
+        $paths.Jms
+    )
+    Write-Terminal 'JMS manual aberto no Edge com perfil separado da automação.' $script:Colors.Cyan
+}
+
+function Start-ManualPowerBIUpdate {
+    $dialog = New-Object Windows.Forms.OpenFileDialog
+    $dialog.Title = 'Escolha a planilha XLSX baixada do JMS'
+    $dialog.Filter = 'Planilha do Excel (*.xlsx)|*.xlsx'
+    $dialog.InitialDirectory = [Environment]::ExpandEnvironmentVariables([string](Get-Paths).Config.downloads)
+    $dialog.CheckFileExists = $true
+    $dialog.Multiselect = $false
+    if ($dialog.ShowDialog() -ne [Windows.Forms.DialogResult]::OK) { return }
+
+    $runner = 'C:\oCoffe\Executar-PowerBI-Manual.ps1'
+    if (-not (Test-Path -LiteralPath $runner)) {
+        Show-OCoffeeMessage 'O componente do modo manual ainda não está instalado.' 'oCoffeIA' ([Windows.Forms.MessageBoxIcon]::Warning)
+        return
+    }
+    Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$runner`" -Arquivo `"$($dialog.FileName)`""
+    Write-Terminal 'Modo manual iniciado: XLSX escolhido > Power BI > revisão.' $script:Colors.Green
+    Show-OCoffeeMessage "Planilha recebida.`r`n`r`nO Power BI será atualizado e a revisão abrirá ao final. O JMS não será acessado."
+}
+
+function Refresh-FinalReport {
+    if (-not $script:FinalReportList) { return }
+    $reportFile = Join-Path $script:ReportPath 'relatorio-final.json'
+    if (-not (Test-Path -LiteralPath $reportFile)) {
+        $script:FinalReportHeader.Text = 'AGUARDANDO A PRIMEIRA ATUALIZAÇÃO DO POWER BI'
+        $script:FinalReportList.Items.Clear()
+        return
+    }
+    try {
+        $report = Get-Content -LiteralPath $reportFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $generated = [datetime]$report.generatedAt
+        $next = $generated.AddHours(1)
+        $script:FinalReportHeader.Text = "ÚLTIMA ATUALIZAÇÃO: $($generated.ToString('dd/MM/yyyy HH:mm'))   •   PRÓXIMA: $($next.ToString('HH:mm'))   •   A ÚLTIMA FICA FIXA ATÉ A PRÓXIMA CONCLUIR"
+        $script:FinalReportList.BeginUpdate()
+        try {
+            $script:FinalReportList.Items.Clear()
+            foreach ($route in @($report.rotas | Sort-Object horasDeRota -Descending)) {
+                $item = New-Object Windows.Forms.ListViewItem([string]$route.entregador)
+                [void]$item.SubItems.Add([string]$route.saida)
+                [void]$item.SubItems.Add(("{0:N1} h" -f [double]$route.horasDeRota))
+                [void]$item.SubItems.Add("$($route.entregues)/$($route.pedidos)")
+                [void]$item.SubItems.Add(("{0:N2}%" -f [double]$route.percentual))
+                $statusText = switch ([string]$route.status) { 'concluida' {'CONCLUÍDA'} 'atrasada' {'ATRASADA'} default {'EM ANDAMENTO'} }
+                [void]$item.SubItems.Add($statusText)
+                $item.ForeColor = switch ([string]$route.status) { 'concluida' {$script:Colors.Green} 'atrasada' {$script:Colors.Red} default {$script:Colors.Gold} }
+                [void]$script:FinalReportList.Items.Add($item)
+            }
+        } finally { $script:FinalReportList.EndUpdate() }
+    } catch {
+        $script:FinalReportHeader.Text = "ÚLTIMO RELATÓRIO MANTIDO • falha ao recarregar: $($_.Exception.Message)"
+    }
 }
 
 function Start-SoftwareUpdate {
@@ -1076,6 +1157,7 @@ $dashboard = New-Tab '01  PAINEL'
 $automation = New-Tab '02  AUTOMAÇÃO'
 $configuration = New-Tab '03  CONFIGURAÇÃO'
 $diagnostic = New-Tab '04  DIAGNÓSTICO'
+$finalReport = New-Tab '05  RELATÓRIO FINAL'
 $script:Cards = @{}
 
 $dashboardClockPanel = New-Object Windows.Forms.Panel
@@ -1169,6 +1251,28 @@ $script:HealthList=New-Object Windows.Forms.ListView;$script:HealthList.Location
 $script:OC01Advice=New-Label $healthPanel 'OC-01 inicializando telemetria...' 14 164 270 45 8.5 $script:Colors.Gold ([Drawing.FontStyle]::Bold);$script:OC01Advice.Dock='Bottom'
 $operationsGrid.Controls.Add($healthPanel,2,0)
 
+[void](New-Label $finalReport 'HORAS DESDE A SAÍDA PARA ENTREGA' 18 18 600 30 14 $script:Colors.Cyan ([Drawing.FontStyle]::Bold))
+$script:FinalReportHeader = New-Label $finalReport 'Carregando último relatório...' 18 54 994 28 9.5 $script:Colors.Gold ([Drawing.FontStyle]::Bold)
+$script:FinalReportList = New-Object Windows.Forms.ListView
+$script:FinalReportList.Location = New-Object Drawing.Point(18, 94)
+$script:FinalReportList.Size = New-Object Drawing.Size(994, 530)
+$script:FinalReportList.Anchor = 'Top,Bottom,Left,Right'
+$script:FinalReportList.View = 'Details'
+$script:FinalReportList.FullRowSelect = $true
+$script:FinalReportList.GridLines = $true
+$script:FinalReportList.BackColor = $script:Colors.Surface
+$script:FinalReportList.ForeColor = $script:Colors.Text
+$script:FinalReportList.BorderStyle = 'FixedSingle'
+[void]$script:FinalReportList.Columns.Add('RESPONSÁVEL',340)
+[void]$script:FinalReportList.Columns.Add('SAÍDA',145)
+[void]$script:FinalReportList.Columns.Add('EM ROTA',100)
+[void]$script:FinalReportList.Columns.Add('ENTREGAS',105)
+[void]$script:FinalReportList.Columns.Add('PERCENTUAL',110)
+[void]$script:FinalReportList.Columns.Add('STATUS',155)
+$finalReport.Controls.Add($script:FinalReportList)
+[void](New-Button $finalReport 'ATUALIZAR VISUALIZAÇÃO' 18 638 240 44 { Refresh-FinalReport } $script:Colors.Cyan)
+[void](New-Button $finalReport 'ATUALIZAR POWER BI AGORA' 274 638 260 44 { Start-MainUpdate } $script:Colors.Green)
+
 $dashboard.Add_Resize({
     $availableHeight = [math]::Max(120, $dashboard.ClientSize.Height - 530)
     $operationsGrid.Height = $availableHeight
@@ -1184,10 +1288,11 @@ $dashboard.Add_Resize({
 [void](New-Label $automation 'CONTROLE DA ROTINA' 18 22 400 28 12 $script:Colors.Cyan ([Drawing.FontStyle]::Bold))
 [void](New-Label $automation 'Inicie, pause ou retome as tarefas agendadas do Windows.' 18 52 650 24 9 $script:Colors.Muted)
 [void](New-Button $automation 'INICIAR PARCIAL AGORA' 18 92 235 50 { Start-MainUpdate } $script:Colors.Green)
-$script:AutomationToggleButton = New-Button $automation '[■] PAUSAR AUTOMAÇÃO' 271 92 488 50 { Toggle-AutomationState } $script:Colors.Gold 'Pausa ou continua todas as rotinas programadas, inclusive o SLA.'
+[void](New-Button $automation 'POWER BI — PLANILHA MANUAL' 271 92 235 50 { Start-ManualPowerBIUpdate } $script:Colors.Cyan 'Escolhe um XLSX já baixado e executa somente Power BI e revisão.')
+$script:AutomationToggleButton = New-Button $automation '[■] PAUSAR AUTOMAÇÃO' 524 92 235 50 { Toggle-AutomationState } $script:Colors.Gold 'Pausa ou continua todas as rotinas programadas, inclusive o SLA.'
 [void](New-Button $automation 'ATUALIZAR STATUS' 777 92 235 50 { Refresh-Dashboard;Refresh-TerminalFromLogs } $script:Colors.Cyan)
 [void](New-Label $automation 'ACESSOS E ARQUIVOS' 18 182 400 28 12 $script:Colors.Cyan ([Drawing.FontStyle]::Bold))
-[void](New-Button $automation 'ABRIR JMS' 18 224 190 46 { Start-Process (Get-Paths).Jms } $script:Colors.Red)
+[void](New-Button $automation 'JMS MANUAL — EDGE' 18 224 190 46 { Open-JmsManual } $script:Colors.Red 'Abre o JMS no Edge com um perfil separado do Chrome usado pela automação.')
 [void](New-Button $automation 'ABRIR POWER BI' 223 224 190 46 { $p=(Get-Paths).Pbix;if(Test-Path -LiteralPath $p){Start-Process $p}else{Show-OCoffeeMessage 'Configure primeiro o arquivo PBIX.'} } $script:Colors.Gold)
 [void](New-Button $automation 'BASE ENTREGAS' 428 224 190 46 { $p=(Get-Paths).Base;if(Test-Path $p){Start-Process explorer.exe -ArgumentList ('"{0}"' -f $p)} } $script:Colors.Cyan)
 [void](New-Button $automation 'BASE SLA' 633 224 190 46 { $p=(Get-Paths).SlaBase;if(Test-Path $p){Start-Process explorer.exe -ArgumentList ('"{0}"' -f $p)} } $script:Colors.Cyan)

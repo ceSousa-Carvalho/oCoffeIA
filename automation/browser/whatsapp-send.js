@@ -264,6 +264,10 @@ if (!imagePath || !fs.existsSync(imagePath)) {
     }
     process.exitCode = 1;
   } finally {
-    if (browser.isConnected()) browser._connection.close();
+    if (browser.isConnected()) {
+      await browser.close().catch(() => {
+        if (browser.isConnected()) browser._connection.close();
+      });
+    }
   }
 })().then(() => process.exit(process.exitCode || 0));

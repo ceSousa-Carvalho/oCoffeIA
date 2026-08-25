@@ -99,12 +99,6 @@ try {
         exit 2
     }
 
-    $candidateId = "$($candidate.Name)|$($candidate.Length)|$($candidate.LastWriteTimeUtc.Ticks)"
-    if ((Test-Path -LiteralPath $stateFile) -and ((Get-Content -LiteralPath $stateFile -Raw).Trim() -eq $candidateId)) {
-        Write-Log "Arquivo já processado anteriormente: $($candidate.Name)"
-        exit 3
-    }
-
     if ($candidate.Length -lt 1024) {
         throw "Arquivo novo inválido ou incompleto: $($candidate.FullName)"
     }
@@ -126,10 +120,11 @@ try {
         try { $workbookXml = $reader.ReadToEnd() } finally { $reader.Dispose() }
         $reader = [System.IO.StreamReader]::new($sheetEntry.Open())
         try { $sheetXml = [xml]$reader.ReadToEnd() } finally { $reader.Dispose() }
-        $isPortuguese = $workbookXml -match 'Exportar carta de porte de entr' -and
-            $sheetXml.DocumentElement.InnerText -match 'Número de pedido JMS'
-        $isChinese = $workbookXml -match '派件运单导出' -and
-            $sheetXml.DocumentElement.InnerText -match '运单编号'
+        # O JMS pode truncar o nome da aba (por exemplo, "Exportar carta de po").
+        # Os cabeçalhos são a identificação estável do relatório exportado.
+        $sheetText = $sheetXml.DocumentElement.InnerText
+        $isPortuguese = $sheetText -match 'Número de pedido JMS'
+        $isChinese = $sheetText -match '运单编号'
         if (-not $isPortuguese -and -not $isChinese) {
             throw 'O relatório JMS possui uma estrutura ou idioma ainda não reconhecido. A base anterior foi preservada.'
         }
@@ -137,6 +132,28 @@ try {
         Write-Log "Relatório validado no idioma: $reportLanguage."
     } finally {
         $archive.Dispose()
+    }
+
+    if ($workbookXml -match 'name="Exportar carta de po"') {
+        $excel = New-Object -ComObject Excel.Application
+        $excel.Visible = $false
+        $excel.DisplayAlerts = $false
+        try {
+            $workbook = $excel.Workbooks.Open($candidate.FullName)
+            $workbook.Worksheets.Item(1).Name = 'Exportar carta de porte de entr'
+            $workbook.Save()
+            $workbook.Close($false)
+        } finally {
+            $excel.Quit()
+        }
+        $candidate = Get-Item -LiteralPath $candidate.FullName
+        Write-Log 'Nome truncado da aba normalizado pelo Excel para compatibilidade com o PBIX antigo.'
+    }
+
+    $candidateId = "$($candidate.Name)|$($candidate.Length)|$($candidate.LastWriteTimeUtc.Ticks)"
+    if ((Test-Path -LiteralPath $stateFile) -and ((Get-Content -LiteralPath $stateFile -Raw).Trim() -eq $candidateId)) {
+        Write-Log "Arquivo já processado anteriormente: $($candidate.Name)"
+        exit 3
     }
 
     if ($candidate.DirectoryName -ne $baseDir) {
@@ -186,6 +203,7 @@ try {
     }
 
     if ($pbi) {
+        try { $pbi.PriorityClass = 'BelowNormal' } catch {}
         $shell = New-Object -ComObject WScript.Shell
         if (Set-ForegroundWindow $pbi.MainWindowHandle) {
             Start-Sleep -Seconds 2

@@ -11,7 +11,8 @@
     PowerBI = 'C:\Gestão de KPI_Operacional_v2\Gestão de KPI.pbix'
     PaginaPowerBI = 'D+0 - RESUMIDO'
     SlaBaseDir = 'C:\Gestão de KPI_Operacional_v2\Base_vencimentos'
-    SlaDiasHistorico = 27
+    SlaDiasHistorico = 21
+    SlaBaseEntrega = 'THE-PI'
     SlaHorario = '07:00'
     SlaPaginaPowerBI = 'SLA - VENCIMENTO'
     SlaGrupoFeishu = 'MA/PI - Hub/Pdd 网点管理'

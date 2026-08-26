@@ -4,6 +4,8 @@ Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
 ## [1.8.5] - 2026-08-26
 
+- Ajustado o SLA diário para abrir Entrega realizada > Lista, selecionar Por data de envio e filtrar a Base de entrega configurada.
+- Fixado o período do SLA entre ontem e exatamente 21 dias antes da data final.
 - Corrigida a abertura do Centro de download do SLA quando o JMS mantém elementos duplicados ocultos.
 - Adicionada espera pelo carregamento da página SLA - VENCIMENTO antes de atualizar filtros e salvar o Power BI.
 - Corrigida a permissão do arquivo de configuração para salvar grupos, bases, horários e caminhos em outras máquinas.

@@ -193,6 +193,7 @@ BASE ENTREGAS    $($paths.Base)
 BASE SLA         $($paths.SlaBase)
 ABA PARCIAL      $(Get-ConfigValue $paths.Config 'paginaPowerBi' 'D+0 - RESUMIDO')
 ABA SLA          $(Get-ConfigValue $paths.Config 'slaPaginaPowerBi' 'SLA - VENCIMENTO')
+BASE SLA JMS     $(Get-ConfigValue $paths.Config 'slaBaseEntrega' (Get-ConfigValue $paths.Config 'expedidoBaseSigla' 'não configurada'))
 HORÁRIOS         $(if($times.Count){$times -join ', '}else{'nenhum horário automático'})
 GRUPO WHATSAPP   $(Get-ConfigValue $paths.Config 'nomeGrupoWhatsApp' 'não configurado')
 WHATSAPP ALERTA  $(if(Get-ConfigValue $paths.Config 'whatsappResponsavel' ''){'configurado'}else{'não configurado'})
@@ -572,13 +573,13 @@ function Configure-Sla {
     $config = Read-OCoffeeConfig
     $time = [Microsoft.VisualBasic.Interaction]::InputBox('Horário diário do SLA (HH:mm):', 'SLA | passo 1 de 3', [string](Get-ConfigValue $config 'slaHorario' '07:00'))
     if ($time -notmatch '^(?:[01]\d|2[0-3]):[0-5]\d$') { Show-OCoffeeMessage 'Horário inválido. Use HH:mm.' 'SLA' ([Windows.Forms.MessageBoxIcon]::Warning); return }
-    $daysText = [Microsoft.VisualBasic.Interaction]::InputBox('Dias do histórico (mínimo 20):', 'SLA | passo 2 de 3', [string](Get-ConfigValue $config 'slaDiasHistorico' 27))
-    $days = 0
-    if (-not [int]::TryParse($daysText, [ref]$days) -or $days -lt 20) { Show-OCoffeeMessage 'Informe no mínimo 20 dias.' 'SLA' ([Windows.Forms.MessageBoxIcon]::Warning); return }
+    $base = [Microsoft.VisualBasic.Interaction]::InputBox('Sigla exata da Base de entrega no JMS. Exemplo: THE-PI:', 'SLA | passo 2 de 3', [string](Get-ConfigValue $config 'slaBaseEntrega' (Get-ConfigValue $config 'expedidoBaseSigla' 'THE-PI'))).Trim().ToUpperInvariant()
+    if ([string]::IsNullOrWhiteSpace($base)) { return }
     $group = [Microsoft.VisualBasic.Interaction]::InputBox('Nome exato do grupo no Feishu:', 'SLA | passo 3 de 3', [string](Get-ConfigValue $config 'slaGrupoFeishu' 'MA/PI - Hub/Pdd 网点管理'))
     if ([string]::IsNullOrWhiteSpace($group)) { return }
     Set-ConfigValue $config 'slaHorario' $time
-    Set-ConfigValue $config 'slaDiasHistorico' $days
+    Set-ConfigValue $config 'slaDiasHistorico' 21
+    Set-ConfigValue $config 'slaBaseEntrega' $base
     Set-ConfigValue $config 'slaGrupoFeishu' $group.Trim()
     Save-OCoffeeConfig $config
     $task = Get-SlaTask

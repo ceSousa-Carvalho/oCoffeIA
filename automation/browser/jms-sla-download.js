@@ -13,7 +13,9 @@ const downloads = expand(config.downloads) || path.join(process.env.USERPROFILE,
 const logDir = expand(config.logDir) || 'C:\\Gestão de KPI_Operacional_v2\\Automacao';
 const logFile = path.join(logDir, 'sla-navegador.log');
 const jmsUrl = config.jmsUrl || 'https://jmsbr.jtjms-br.com/index';
-const historyDays = Math.max(20, Number(config.slaDiasHistorico || 27));
+const historyDays = 21;
+const deliveryBase = String(config.slaBaseEntrega || config.expedidoBaseSigla ||
+  (Array.isArray(config.expedidoBases) ? config.expedidoBases[0] : '') || '').trim().toUpperCase();
 
 fs.mkdirSync(profile, { recursive: true });
 fs.mkdirSync(downloads, { recursive: true });
@@ -22,6 +24,28 @@ const log = message => fs.appendFileSync(logFile, `${new Date().toISOString()} $
 const isoDate = date => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
 }).format(date);
+
+async function firstVisible(locator, description) {
+  for (const candidate of await locator.all()) {
+    if (await candidate.isVisible().catch(() => false)) return candidate;
+  }
+  throw new Error(`${description} não foi encontrado ou não está visível.`);
+}
+
+async function clickVisibleText(page, text, exact = true) {
+  const target = await firstVisible(page.getByText(text, { exact }), `O item ${text}`);
+  await target.click();
+}
+
+async function selectDeliveryBase(page, base) {
+  if (!base) throw new Error('A Base de entrega do SLA não está configurada.');
+  const label = await firstVisible(page.getByText('Base de entrega:', { exact: true }), 'O filtro Base de entrega');
+  const input = label.locator('xpath=following::input[1]');
+  await input.waitFor({ state: 'visible', timeout: 30000 });
+  if ((await input.inputValue().catch(() => '')).trim().toUpperCase() === base) return;
+  await input.click();
+  await clickVisibleText(page, base, true);
+}
 
 async function setDateRange(page, start, end) {
   const changed = await page.locator('input').evaluateAll((inputs, values) => {
@@ -42,7 +66,7 @@ async function setDateRange(page, start, end) {
 (async () => {
   const today = new Date();
   const endDate = new Date(today); endDate.setDate(endDate.getDate() - 1);
-  const startDate = new Date(today); startDate.setDate(startDate.getDate() - historyDays);
+  const startDate = new Date(endDate); startDate.setDate(startDate.getDate() - historyDays);
   const start = isoDate(startDate);
   const end = isoDate(endDate);
   const { browser, context, page: sessionPage } = await getJmsSession({ chrome, profile, jmsUrl, log });
@@ -63,23 +87,18 @@ async function setDateRange(page, start, end) {
     const businessCard = homeCards.nth(7);
     await businessCard.waitFor({ state: 'visible', timeout: 60000 });
     await businessCard.click();
-    await page.getByText('Prazo', { exact: true }).first().click();
-    await page.getByText('Entrega realizada', { exact: true }).last().click();
-    await page.getByText('Por data de envio', { exact: false }).first().click();
+    await clickVisibleText(page, 'Prazo');
+    await clickVisibleText(page, 'Entrega realizada');
+    await clickVisibleText(page, 'Lista');
+    await clickVisibleText(page, 'Por data de envio');
     await setDateRange(page, start, end);
-    log(`Consulta SLA configurada: ${start} até ${end}.`);
+    await selectDeliveryBase(page, deliveryBase);
+    log(`Consulta SLA Lista configurada: ${start} até ${end}; Base de entrega: ${deliveryBase}.`);
 
     const toolbar = page.locator('.avue-crud__left > button:visible');
     await toolbar.nth(0).click();
     await page.waitForTimeout(5000);
-    const downloadCenterCandidates = await page.getByText('Centro de download', { exact: false }).all();
-    const downloadCenter = await downloadCenterCandidates.reduce(async (foundPromise, candidate) => {
-      const found = await foundPromise;
-      if (found) return found;
-      return await candidate.isVisible().catch(() => false) ? candidate : null;
-    }, Promise.resolve(null));
-    if (!downloadCenter) throw new Error('O botão visível Centro de download não foi encontrado.');
-    await downloadCenter.click();
+    await clickVisibleText(page, 'Centro de download', false);
     let dialog = page.locator('.el-dialog__wrapper:visible').last();
     await dialog.waitFor({ state: 'visible', timeout: 30000 });
     let row = null;
@@ -109,7 +128,7 @@ async function setDateRange(page, start, end) {
       const exportStarted = new Date();
       await toolbar.nth(1).click();
       await page.waitForTimeout(2500);
-      await page.getByText('Centro de download', { exact: false }).first().click();
+      await clickVisibleText(page, 'Centro de download', false);
       dialog = page.locator('.el-dialog__wrapper:visible').last();
       await dialog.waitFor({ state: 'visible', timeout: 30000 });
       const deadline = Date.now() + 15 * 60 * 1000;

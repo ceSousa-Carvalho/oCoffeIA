@@ -6,6 +6,7 @@ Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
 - Ajustado o SLA para selecionar Lista e Por data de envio antes de preencher o período.
 - Mantida a data final em ontem e a data inicial exatamente 21 dias antes.
+- Corrigida a confirmação dos campos de data no JMS para que a consulta use o intervalo completo, e não somente o dia final.
 - Removido o filtro obrigatório de Base de entrega da consulta do SLA.
 - Tornado explícito o clique em Consulta antes da exportação.
 

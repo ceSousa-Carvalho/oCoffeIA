@@ -45,13 +45,12 @@ async function setDateRange(page, start, end) {
     const label = await firstVisible(page.getByText(labelText, { exact: true }), `O campo ${labelText}`);
     const input = label.locator('xpath=following::input[1]');
     await input.waitFor({ state: 'visible', timeout: 30000 });
-    await input.evaluate((element, dateValue) => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-      setter.call(element, dateValue);
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-      element.dispatchEvent(new Event('blur', { bubbles: true }));
-    }, value);
+    await input.evaluate(element => element.removeAttribute('readonly'));
+    await input.click();
+    await input.fill(value);
+    await input.press('Enter');
+    await input.blur();
+    await page.waitForTimeout(500);
     const actualValue = (await input.inputValue()).slice(0, 10);
     if (actualValue !== value) throw new Error(`${labelText} deveria ser ${value}, mas ficou ${actualValue}.`);
   }

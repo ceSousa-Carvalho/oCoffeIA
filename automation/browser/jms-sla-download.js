@@ -14,20 +14,23 @@ const logDir = expand(config.logDir) || 'C:\\Gestão de KPI_Operacional_v2\\Auto
 const logFile = path.join(logDir, 'sla-navegador.log');
 const jmsUrl = config.jmsUrl || 'https://jmsbr.jtjms-br.com/index';
 const historyDays = 21;
-const deliveryBase = String(config.slaBaseEntrega || config.expedidoBaseSigla ||
-  (Array.isArray(config.expedidoBases) ? config.expedidoBases[0] : '') || '').trim().toUpperCase();
 
 fs.mkdirSync(profile, { recursive: true });
 fs.mkdirSync(downloads, { recursive: true });
 fs.mkdirSync(logDir, { recursive: true });
 const log = message => fs.appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`, 'utf8');
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const isoDate = date => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
 }).format(date);
 
-async function firstVisible(locator, description) {
-  for (const candidate of await locator.all()) {
-    if (await candidate.isVisible().catch(() => false)) return candidate;
+async function firstVisible(locator, description, timeout = 60000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    for (const candidate of await locator.all()) {
+      if (await candidate.isVisible().catch(() => false)) return candidate;
+    }
+    await wait(500);
   }
   throw new Error(`${description} não foi encontrado ou não está visível.`);
 }
@@ -37,30 +40,24 @@ async function clickVisibleText(page, text, exact = true) {
   await target.click();
 }
 
-async function selectDeliveryBase(page, base) {
-  if (!base) throw new Error('A Base de entrega do SLA não está configurada.');
-  const label = await firstVisible(page.getByText('Base de entrega:', { exact: true }), 'O filtro Base de entrega');
-  const input = label.locator('xpath=following::input[1]');
-  await input.waitFor({ state: 'visible', timeout: 30000 });
-  if ((await input.inputValue().catch(() => '')).trim().toUpperCase() === base) return;
-  await input.click();
-  await clickVisibleText(page, base, true);
-}
-
 async function setDateRange(page, start, end) {
-  const changed = await page.locator('input').evaluateAll((inputs, values) => {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    const dateInputs = inputs.filter(input => /^\d{4}-\d{2}-\d{2}/.test(input.value));
-    if (dateInputs.length < 2) return 0;
-    [values.start, values.end].forEach((value, index) => {
-      setter.call(dateInputs[index], value);
-      dateInputs[index].dispatchEvent(new Event('input', { bubbles: true }));
-      dateInputs[index].dispatchEvent(new Event('change', { bubbles: true }));
-      dateInputs[index].dispatchEvent(new Event('blur', { bubbles: true }));
-    });
-    return 2;
-  }, { start, end });
-  if (changed !== 2) throw new Error('Os campos Data início/Data final do SLA não foram encontrados.');
+  async function setLabeledDate(labelText, value) {
+    const label = await firstVisible(page.getByText(labelText, { exact: true }), `O campo ${labelText}`);
+    const input = label.locator('xpath=following::input[1]');
+    await input.waitFor({ state: 'visible', timeout: 30000 });
+    await input.evaluate((element, dateValue) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(element, dateValue);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+      element.dispatchEvent(new Event('blur', { bubbles: true }));
+    }, value);
+    const actualValue = (await input.inputValue()).slice(0, 10);
+    if (actualValue !== value) throw new Error(`${labelText} deveria ser ${value}, mas ficou ${actualValue}.`);
+  }
+
+  await setLabeledDate('Data início', start);
+  await setLabeledDate('data final', end);
 }
 
 (async () => {
@@ -90,14 +87,23 @@ async function setDateRange(page, start, end) {
     await clickVisibleText(page, 'Prazo');
     await clickVisibleText(page, 'Entrega realizada');
     await clickVisibleText(page, 'Lista');
-    await clickVisibleText(page, 'Por data de envio');
+    const shippingDateOption = await firstVisible(
+      page.getByText('Por data de envio', { exact: true }),
+      'A opção Por data de envio'
+    );
+    await shippingDateOption.click();
     await setDateRange(page, start, end);
-    await selectDeliveryBase(page, deliveryBase);
-    log(`Consulta SLA Lista configurada: ${start} até ${end}; Base de entrega: ${deliveryBase}.`);
+    log(`Consulta SLA Lista configurada: ${start} até ${end}; sem filtro de Base de entrega.`);
 
     const toolbar = page.locator('.avue-crud__left > button:visible');
-    await toolbar.nth(0).click();
+    const consultButton = await firstVisible(
+      toolbar.getByText('Consulta', { exact: true }),
+      'O botão Consulta do SLA'
+    );
+    await consultButton.click();
     await page.waitForTimeout(5000);
+    await page.locator('.el-loading-mask:visible').waitFor({ state: 'hidden', timeout: 60000 }).catch(() => {});
+    log(`SLA consultado no JMS: ${start} até ${end}; sem filtro de Base de entrega.`);
     await clickVisibleText(page, 'Centro de download', false);
     let dialog = page.locator('.el-dialog__wrapper:visible').last();
     await dialog.waitFor({ state: 'visible', timeout: 30000 });
@@ -119,24 +125,18 @@ async function setDateRange(page, start, end) {
       return null;
     }
 
-    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-    row = await findCompletedRow(startOfToday);
-    if (row) {
-      log('Reutilizando a exportação de Entrega realizada já concluída hoje.');
-    } else {
-      await dialog.locator('.el-dialog__headerbtn').click().catch(() => page.keyboard.press('Escape'));
-      const exportStarted = new Date();
-      await toolbar.nth(1).click();
-      await page.waitForTimeout(2500);
-      await clickVisibleText(page, 'Centro de download', false);
-      dialog = page.locator('.el-dialog__wrapper:visible').last();
-      await dialog.waitFor({ state: 'visible', timeout: 30000 });
-      const deadline = Date.now() + 15 * 60 * 1000;
-      while (Date.now() < deadline) {
-        row = await findCompletedRow(new Date(exportStarted.getTime() - 120000));
-        if (row) break;
-        await page.waitForTimeout(10000);
-      }
+    await dialog.locator('.el-dialog__headerbtn').click().catch(() => page.keyboard.press('Escape'));
+    const exportStarted = new Date();
+    await toolbar.nth(1).click();
+    await page.waitForTimeout(2500);
+    await clickVisibleText(page, 'Centro de download', false);
+    dialog = page.locator('.el-dialog__wrapper:visible').last();
+    await dialog.waitFor({ state: 'visible', timeout: 30000 });
+    const deadline = Date.now() + 15 * 60 * 1000;
+    while (Date.now() < deadline) {
+      row = await findCompletedRow(new Date(exportStarted.getTime() - 5000));
+      if (row) break;
+      await page.waitForTimeout(10000);
     }
     if (!row) throw new Error('A exportação diária do SLA não ficou concluída dentro de 15 minutos.');
 

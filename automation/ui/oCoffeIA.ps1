@@ -19,7 +19,7 @@ if (-not $script:InstanceCreated) {
 
 $script:Root = 'C:\oCoffe'
 $script:ConfigPath = Join-Path $script:Root 'config\gestao-kpi.json'
-$script:Version = '1.8.5'
+$script:Version = '1.8.6'
 if (Test-Path -LiteralPath $script:ConfigPath) {
     try {
         $versionConfig = Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json

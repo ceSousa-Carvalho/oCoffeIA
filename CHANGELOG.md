@@ -2,6 +2,13 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.6] - 2026-08-26
+
+- Ajustado o SLA para selecionar Lista e Por data de envio antes de preencher o período.
+- Mantida a data final em ontem e a data inicial exatamente 21 dias antes.
+- Removido o filtro obrigatório de Base de entrega da consulta do SLA.
+- Tornado explícito o clique em Consulta antes da exportação.
+
 ## [1.8.5] - 2026-08-26
 
 - Ajustado o SLA diário para abrir Entrega realizada > Lista, selecionar Por data de envio e filtrar a Base de entrega configurada.

@@ -19,7 +19,7 @@ if (-not $script:InstanceCreated) {
 
 $script:Root = 'C:\oCoffe'
 $script:ConfigPath = Join-Path $script:Root 'config\gestao-kpi.json'
-$script:Version = '1.8.1'
+$script:Version = '1.8.5'
 if (Test-Path -LiteralPath $script:ConfigPath) {
     try {
         $versionConfig = Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -46,26 +46,6 @@ $script:Colors = @{
     Muted = [Drawing.Color]::FromArgb(145, 165, 181)
 }
 
-if (-not ([System.Management.Automation.PSTypeName]'OCoffeeMascotNative').Type) {
-    Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class OCoffeeMascotNative {
-    [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
-    [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
-    [DllImport("user32.dll", EntryPoint="GetWindowLong")] public static extern int GetWindowLong(IntPtr handle, int index);
-    [DllImport("user32.dll", EntryPoint="SetWindowLong")] public static extern int SetWindowLong(IntPtr handle, int index, int value);
-}
-'@
-}
-
-function Get-UserIdleSeconds {
-    $info = New-Object OCoffeeMascotNative+LASTINPUTINFO
-    $info.cbSize = [Runtime.InteropServices.Marshal]::SizeOf($info)
-    if (-not [OCoffeeMascotNative]::GetLastInputInfo([ref]$info)) { return 0 }
-    return [math]::Max(0, ([Environment]::TickCount - [int]$info.dwTime) / 1000)
-}
-
 function Read-OCoffeeConfig {
     if (Test-Path -LiteralPath $script:ConfigPath) {
         try { return Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
@@ -74,7 +54,11 @@ function Read-OCoffeeConfig {
 }
 
 function Save-OCoffeeConfig($Config) {
-    $Config | ConvertTo-Json | Set-Content -LiteralPath $script:ConfigPath -Encoding UTF8
+    try {
+        $Config | ConvertTo-Json | Set-Content -LiteralPath $script:ConfigPath -Encoding UTF8
+    } catch [System.UnauthorizedAccessException] {
+        throw "Sem permissão para salvar $script:ConfigPath. Execute novamente o instalador como administrador para reparar as permissões."
+    }
 }
 
 function Get-ConfigValue($Config, [string]$Name, $Default) {
@@ -114,9 +98,6 @@ function Toggle-AutomationState {
 }
 
 function Show-OCoffeeMessage([string]$Text, [string]$Title = 'oCoffeIA', [Windows.Forms.MessageBoxIcon]$Icon = [Windows.Forms.MessageBoxIcon]::Information) {
-    if ($script:MascotForm -and $script:MascotEnabled -and $Icon -in @([Windows.Forms.MessageBoxIcon]::Warning, [Windows.Forms.MessageBoxIcon]::Error)) {
-        Show-MascotNotice $Text $(if($Icon -eq [Windows.Forms.MessageBoxIcon]::Error){'alert'}else{'tip'})
-    }
     [void][Windows.Forms.MessageBox]::Show($Text, $Title, [Windows.Forms.MessageBoxButtons]::OK, $Icon)
 }
 
@@ -468,6 +449,39 @@ function Start-SlaUpdate {
     Write-Terminal 'SLA iniciado: JMS > Base_vencimentos > BD_D1 > Feishu.' $script:Colors.Green
 }
 
+function Start-ManualSlaUpdate {
+    $dialog = New-Object Windows.Forms.OpenFileDialog
+    $dialog.Title = 'Escolha a planilha Entrega realizada (Lista) do SLA'
+    $dialog.Filter = 'Planilha do Excel (*.xlsx)|*.xlsx'
+    $dialog.InitialDirectory = [Environment]::ExpandEnvironmentVariables([string](Get-Paths).Config.downloads)
+    $dialog.CheckFileExists = $true
+    $dialog.Multiselect = $false
+    if ($dialog.ShowDialog() -ne [Windows.Forms.DialogResult]::OK) { return }
+
+    $defaultDate = (Get-Date).AddDays(-1).ToString('dd/MM/yyyy')
+    $dateText = [Microsoft.VisualBasic.Interaction]::InputBox(
+        'Informe a data final usada na exportação do SLA (DD/MM/AAAA):',
+        'SLA manual | data do relatório',
+        $defaultDate
+    ).Trim()
+    if (-not $dateText) { return }
+    $endDate = [datetime]::MinValue
+    if (-not [datetime]::TryParseExact($dateText, 'dd/MM/yyyy', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$endDate)) {
+        Show-OCoffeeMessage 'Data inválida. Use o formato DD/MM/AAAA.' 'SLA manual' ([Windows.Forms.MessageBoxIcon]::Warning)
+        return
+    }
+
+    $runner = 'C:\oCoffe\Executar-SLA-Manual.ps1'
+    if (-not (Test-Path -LiteralPath $runner)) {
+        Show-OCoffeeMessage 'O componente do SLA manual ainda não está instalado.' 'SLA manual' ([Windows.Forms.MessageBoxIcon]::Warning)
+        return
+    }
+    $isoDate = $endDate.ToString('yyyy-MM-dd')
+    Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$runner`" -Arquivo `"$($dialog.FileName)`" -DataFinal `"$isoDate`""
+    Write-Terminal "SLA manual iniciado: XLSX escolhido > BD_D1 > filtro $dateText > revisão." $script:Colors.Green
+    Show-OCoffeeMessage "Atualização manual do SLA iniciada.`r`n`r`nA tabela BD_D1 será atualizada e a revisão abrirá ao final."
+}
+
 function Review-LatestPartial {
     $latest = Get-ChildItem -LiteralPath $script:ReportPath -Filter 'parcial-*.png' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $latest) { Show-OCoffeeMessage 'Ainda não existe uma captura para revisar.'; return }
@@ -733,362 +747,6 @@ function Run-Diagnostics {
         [void]$script:Diagnostics.Items.Add($item)
     }
     Write-Terminal "Diagnóstico concluído: $okCount/$($checks.Count) itens prontos." $(if($okCount -eq $checks.Count){$script:Colors.Green}else{$script:Colors.Gold})
-    if ($okCount -lt $checks.Count -and $script:MascotForm) {
-        $firstMissing = $checks | Where-Object { -not [bool]$_[1] } | Select-Object -First 1
-        Show-MascotNotice "Dica: verifique $($firstMissing[0])." 'tip'
-    }
-}
-
-function Get-AllChildControls([Windows.Forms.Control]$Parent) {
-    foreach ($control in $Parent.Controls) {
-        $control
-        if ($control.HasChildren) { Get-AllChildControls $control }
-    }
-}
-
-function Import-MascotImage([string]$Path) {
-    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
-    try {
-        $source = [Drawing.Image]::FromStream($stream)
-        try { return New-Object Drawing.Bitmap($source) } finally { $source.Dispose() }
-    } finally { $stream.Dispose() }
-}
-
-function Set-MascotFrame([string]$Frame) {
-    if (-not $script:MascotFrames -or -not $script:MascotFrames.ContainsKey($Frame)) { return }
-    $script:MascotPicture.Image = $script:MascotFrames[$Frame]
-}
-
-function Select-MascotInterfaceTarget {
-    $buttons = @(Get-AllChildControls $script:MascotOwner | Where-Object {
-        $_ -is [Windows.Forms.Button] -and $_.Visible -and $_.Enabled -and $_ -ne $script:MascotToggle
-    })
-    if (-not $buttons.Count) { $script:MascotTargetControl = $null; return }
-    $script:MascotTargetControl = $buttons | Get-Random
-    $point = $script:MascotTargetControl.PointToScreen((New-Object Drawing.Point(0, 0)))
-    $bounds = $script:MascotOwner.DesktopBounds
-    $targetX = [math]::Max($bounds.Left + 8, [math]::Min($bounds.Right - $script:MascotForm.Width - 8, $point.X + [int]($script:MascotTargetControl.Width / 2) - [int]($script:MascotForm.Width / 2)))
-    $targetY = [math]::Max($bounds.Top + 72, [math]::Min($bounds.Bottom - $script:MascotForm.Height - 12, $point.Y - $script:MascotForm.Height + 38))
-    $script:MascotTarget = New-Object Drawing.Point([int]$targetX, [int]$targetY)
-    $label = ($script:MascotTargetControl.Text -replace '[\[\]▶◆✓]', '').Trim()
-    $script:MascotSpeech.Text = "Olha este item: $label"
-}
-
-function Show-MascotNotice([string]$Message, [string]$Kind = 'tip') {
-    if (-not $script:MascotForm -or -not $script:MascotEnabled) { return }
-    $clean = ($Message -replace '[\r\n]+', ' ').Trim()
-    if ($clean.Length -gt 78) { $clean = $clean.Substring(0, 75) + '...' }
-    if ($Kind -eq 'alert') { Set-MascotState 'alert' "ERRO: $clean" }
-    else { Set-MascotState 'idle' "DICA: $clean" }
-}
-
-function Open-MascotInteractionMenu {
-    if (-not $script:MascotMenu -or -not $script:MascotEnabled) { return }
-    $name = if ([string]::IsNullOrWhiteSpace($env:USERNAME)) { 'chefe' } else { $env:USERNAME }
-    Set-MascotState 'idle' "Olá, $name! O que vamos fazer?"
-    $script:MascotNextAction = (Get-Date).AddSeconds(20)
-    $script:MascotMenu.Show([Windows.Forms.Cursor]::Position)
-}
-
-function New-MascotMenuItem([string]$Text, [scriptblock]$Action) {
-    $item = New-Object Windows.Forms.ToolStripMenuItem
-    $item.Text = $Text
-    $item.ForeColor = $script:Colors.Text
-    $item.BackColor = $script:Colors.Surface2
-    $item.Font = New-Object Drawing.Font('Segoe UI Semibold', 9.5)
-    $item.Add_Click($Action)
-    [void]$script:MascotMenu.Items.Add($item)
-    return $item
-}
-
-function Set-MascotState([string]$State, [string]$Message = '') {
-    if (-not $script:MascotForm) { return }
-    $script:MascotState = $State
-    $script:MascotBed.Visible = $false
-    $script:MascotMeal.Visible = $false
-    $script:MascotSpeech.ForeColor = $script:Colors.Cyan
-    $script:MascotPicture.Location = New-Object Drawing.Point(48, 58)
-    $script:MascotPicture.Size = New-Object Drawing.Size(145, 160)
-    $messages = @{
-        walk = @('Patrulhando os KPIs...', 'Conferindo as bases...', 'Dica: revise a imagem antes de enviar.')
-        play = @('Modo turbo: beep boop!', 'Vou mostrar um comando!', 'Caçando indicadores!')
-        idle = @('Monitoramento ativo.', 'Dica: F5 atualiza o painel.', 'Café carregado: 100%.')
-        sleep = @('ZzZ... modo economia.', 'Dormindo. Acordo quando você voltar!')
-        alert = @('Encontrei um erro. Veja o diagnóstico!', 'Atenção: uma etapa precisa ser conferida.')
-    }
-    if ([string]::IsNullOrWhiteSpace($Message)) {
-        $pool = @($messages[$State])
-        $Message = if ($pool.Count) { $pool | Get-Random } else { 'oCoffe online.' }
-    }
-    $script:MascotSpeech.Text = $Message
-    switch ($State) {
-        'walk' {
-            Set-MascotFrame 'walkA'
-            $script:MascotDX = Get-Random -InputObject @(-3, -2, 2, 3)
-            $script:MascotDY = Get-Random -InputObject @(-1, 0, 1)
-            $script:MascotNextAction = (Get-Date).AddSeconds((Get-Random -Minimum 10 -Maximum 24))
-        }
-        'play' {
-            Set-MascotFrame 'play'
-            Select-MascotInterfaceTarget
-            $script:MascotDX = 0; $script:MascotDY = 0
-            $script:MascotNextAction = (Get-Date).AddSeconds((Get-Random -Minimum 8 -Maximum 16))
-        }
-        'idle' {
-            Set-MascotFrame 'base'
-            $script:MascotDX = 0; $script:MascotDY = 0
-            $script:MascotNextAction = (Get-Date).AddSeconds((Get-Random -Minimum 8 -Maximum 18))
-        }
-        'sleep' {
-            Set-MascotFrame 'blink'
-            $script:MascotDX = 0; $script:MascotDY = 0
-            $script:MascotPicture.Location = New-Object Drawing.Point(80, 62)
-            $script:MascotPicture.Size = New-Object Drawing.Size(115, 125)
-            $script:MascotBed.Visible = $true
-            $bounds = $script:MascotOwner.DesktopBounds
-            $script:MascotForm.Location = New-Object Drawing.Point(($bounds.Left + 24), ($bounds.Bottom - $script:MascotForm.Height - 20))
-        }
-        'eat' {
-            Set-MascotFrame 'base'
-            $script:MascotDX = 0; $script:MascotDY = 0
-            $script:MascotMeal.Visible = $true
-        }
-        'alert' {
-            Set-MascotFrame 'play'
-            $script:MascotSpeech.ForeColor = $script:Colors.Red
-            $script:MascotDX = 0; $script:MascotDY = 0
-            $script:MascotNextAction = (Get-Date).AddSeconds(9)
-        }
-    }
-}
-
-function Move-Mascot {
-    if (-not $script:MascotForm -or $script:MascotState -notin @('walk','play')) { return }
-    $bounds = $script:MascotOwner.DesktopBounds
-    $left = $bounds.Left + 8
-    $top = $bounds.Top + 72
-    $right = $bounds.Right - $script:MascotForm.Width - 8
-    $bottom = $bounds.Bottom - $script:MascotForm.Height - 12
-    if ($script:MascotState -eq 'play' -and $script:MascotTarget) {
-        $deltaX = $script:MascotTarget.X - $script:MascotForm.Left
-        $deltaY = $script:MascotTarget.Y - $script:MascotForm.Top
-        $stepX = [math]::Sign($deltaX) * [math]::Min(7, [math]::Abs($deltaX))
-        $stepY = [math]::Sign($deltaY) * [math]::Min(5, [math]::Abs($deltaY))
-        $x = $script:MascotForm.Left + $stepX
-        $y = $script:MascotForm.Top + $stepY
-    } else {
-        $x = $script:MascotForm.Left + $script:MascotDX
-        $y = $script:MascotForm.Top + $script:MascotDY
-    }
-    if ($x -le $left -or $x -ge $right) { $script:MascotDX = -$script:MascotDX; $x = [math]::Max($left, [math]::Min($right, $x)) }
-    if ($y -le $top -or $y -ge $bottom) { $script:MascotDY = -$script:MascotDY; $y = [math]::Max($top, [math]::Min($bottom, $y)) }
-    $script:MascotForm.Location = New-Object Drawing.Point([int]$x, [int]$y)
-}
-
-function Start-MascotSystem([Windows.Forms.Form]$Owner) {
-    $asset = Join-Path $script:Root 'assets\ocoffe-mascot.png'
-    if (-not (Test-Path -LiteralPath $asset)) {
-        $script:MascotToggle.Text = 'MASCOTE: SEM ARQUIVO'
-        $script:MascotToggle.Enabled = $false
-        return
-    }
-    $script:MascotOwner = $Owner
-    $assetPaths = @{
-        base = $asset
-        walkA = Join-Path $script:Root 'assets\ocoffe-walk-a.png'
-        walkB = Join-Path $script:Root 'assets\ocoffe-walk-b.png'
-        blink = Join-Path $script:Root 'assets\ocoffe-blink.png'
-        play = Join-Path $script:Root 'assets\ocoffe-play.png'
-    }
-    $script:MascotFrames = @{}
-    foreach ($frame in $assetPaths.GetEnumerator()) {
-        $path = if (Test-Path -LiteralPath $frame.Value) { $frame.Value } else { $asset }
-        $script:MascotFrames[$frame.Key] = Import-MascotImage $path
-    }
-    $mascotConfig = Read-OCoffeeConfig
-    $script:MascotEnabled = [bool](Get-ConfigValue $mascotConfig 'mascoteAtivo' $true)
-    $script:MascotIdleLimitSeconds = [math]::Max(60, ([int](Get-ConfigValue $mascotConfig 'mascoteInatividadeMinutos' 2) * 60))
-    $script:MascotForm = New-Object Windows.Forms.Form
-    $script:MascotForm.FormBorderStyle = 'None'
-    $script:MascotForm.ShowInTaskbar = $false
-    $script:MascotForm.Size = New-Object Drawing.Size(240, 235)
-    $script:MascotForm.BackColor = [Drawing.Color]::Magenta
-    $script:MascotForm.TransparencyKey = [Drawing.Color]::Magenta
-    $script:MascotForm.StartPosition = 'Manual'
-    $script:MascotForm.TopMost = $false
-
-    $script:MascotSpeech = New-Object Windows.Forms.Label
-    $script:MascotSpeech.Location = New-Object Drawing.Point(4, 3)
-    $script:MascotSpeech.Size = New-Object Drawing.Size(232, 50)
-    $script:MascotSpeech.TextAlign = 'MiddleCenter'
-    $script:MascotSpeech.BackColor = $script:Colors.Surface
-    $script:MascotSpeech.ForeColor = $script:Colors.Cyan
-    $script:MascotSpeech.Font = New-Object Drawing.Font('Segoe UI Semibold', 8.5)
-    $script:MascotForm.Controls.Add($script:MascotSpeech)
-
-    $script:MascotPicture = New-Object Windows.Forms.PictureBox
-    $script:MascotPicture.Location = New-Object Drawing.Point(48, 58)
-    $script:MascotPicture.Size = New-Object Drawing.Size(145, 160)
-    $script:MascotPicture.SizeMode = 'Zoom'
-    $script:MascotPicture.BackColor = [Drawing.Color]::Transparent
-    $script:MascotPicture.Image = $script:MascotFrames.base
-    $script:MascotPicture.Cursor = [Windows.Forms.Cursors]::Hand
-    $script:MascotPicture.Add_MouseClick({ if ($_.Button -eq [Windows.Forms.MouseButtons]::Left) { Open-MascotInteractionMenu } })
-    $script:MascotForm.Controls.Add($script:MascotPicture)
-    $script:ToolTip.SetToolTip($script:MascotPicture, 'Clique para interagir com o OC-01.')
-
-    $script:MascotBed = New-Object Windows.Forms.Panel
-    $script:MascotBed.Location = New-Object Drawing.Point(30, 165)
-    $script:MascotBed.Size = New-Object Drawing.Size(190, 58)
-    $script:MascotBed.BackColor = [Drawing.Color]::Transparent
-    $script:MascotBed.Add_Paint({
-        param($sender, $eventArgs)
-        $frameBrush = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(110, 68, 42))
-        $blanketBrush = New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(205, 35, 52))
-        try {
-            $eventArgs.Graphics.FillRectangle($frameBrush, 5, 42, 180, 12)
-            $eventArgs.Graphics.FillRectangle($blanketBrush, 20, 18, 165, 30)
-            $eventArgs.Graphics.FillEllipse([Drawing.Brushes]::WhiteSmoke, 20, 12, 45, 24)
-        } finally { $frameBrush.Dispose(); $blanketBrush.Dispose() }
-    })
-    $script:MascotBed.Visible = $false
-    $script:MascotForm.Controls.Add($script:MascotBed)
-
-    $script:MascotMeal = New-Object Windows.Forms.Label
-    $script:MascotMeal.Location = New-Object Drawing.Point(40, 195)
-    $script:MascotMeal.Size = New-Object Drawing.Size(160, 30)
-    $script:MascotMeal.TextAlign = 'MiddleCenter'
-    $script:MascotMeal.BackColor = $script:Colors.Gold
-    $script:MascotMeal.ForeColor = [Drawing.Color]::Black
-    $script:MascotMeal.Font = New-Object Drawing.Font('Segoe UI Semibold', 9, [Drawing.FontStyle]::Bold)
-    $script:MascotMeal.Visible = $false
-    $script:MascotForm.Controls.Add($script:MascotMeal)
-
-    $script:MascotSpeech.Cursor = [Windows.Forms.Cursors]::Hand
-    $script:MascotSpeech.Add_MouseClick({ if ($_.Button -eq [Windows.Forms.MouseButtons]::Left) { Open-MascotInteractionMenu } })
-    $script:ToolTip.SetToolTip($script:MascotSpeech, 'Clique para conversar com o OC-01.')
-
-    $script:MascotMenu = New-Object Windows.Forms.ContextMenuStrip
-    $script:MascotMenu.BackColor = $script:Colors.Surface2
-    $script:MascotMenu.ForeColor = $script:Colors.Text
-    $script:MascotMenu.ShowImageMargin = $false
-    $script:MascotMenu.Padding = New-Object Windows.Forms.Padding(6)
-    [void](New-MascotMenuItem 'CONVERSAR COMIGO' {
-        $answers = @('Estou aqui! Vamos cuidar dos indicadores.', 'Café pronto e sistemas monitorados.', 'Pode deixar, estou acompanhando as missões.', 'Olá! Clique sempre que precisar de mim.')
-        Set-MascotState 'idle' ($answers | Get-Random)
-    })
-    [void](New-MascotMenuItem 'ME DÊ UMA DICA' {
-        $tips = @('Revise a imagem e o grupo antes de enviar.', 'Use F5 para atualizar os indicadores da tela.', 'A aba DIAGNÓSTICO mostra o que precisa de atenção.', 'Mantenha o Windows conectado nos horários agendados.', 'O SLA normalmente precisa ser atualizado uma vez ao dia.')
-        Show-MascotNotice ($tips | Get-Random) 'tip'
-    })
-    [void](New-MascotMenuItem 'BRINCAR AGORA' {
-        $script:MascotManualSleepUntil = [datetime]::MinValue
-        Set-MascotState 'play' 'Vamos brincar e explorar os comandos!'
-    })
-    [void](New-MascotMenuItem 'ABRIR DIAGNÓSTICO' {
-        $script:MascotOwner.Show(); $script:MascotOwner.Activate(); $tabs.SelectedIndex = 3
-        Run-Diagnostics
-        Set-MascotState 'idle' 'Diagnóstico aberto. Vou ajudar na conferência.'
-    })
-    [void](New-MascotMenuItem 'DESCANSAR POR 1 MINUTO' {
-        $script:MascotManualSleepUntil = (Get-Date).AddMinutes(1)
-        Set-MascotState 'sleep' 'Vou tirar uma pausa rápida. ZzZ...'
-    })
-    [void](New-MascotMenuItem 'OCULTAR OC-01' { $script:MascotToggle.PerformClick() })
-
-    $clickPath = New-Object Drawing.Drawing2D.GraphicsPath
-    $clickPath.AddRectangle((New-Object Drawing.Rectangle(4, 3, 232, 50)))
-    $clickPath.AddRectangle((New-Object Drawing.Rectangle(30, 55, 190, 178)))
-    $script:MascotForm.Region = New-Object Drawing.Region($clickPath)
-    $clickPath.Dispose()
-
-    $startBounds = $Owner.DesktopBounds
-    $script:MascotForm.Location = New-Object Drawing.Point(($startBounds.Right - 280), ($startBounds.Bottom - 300))
-    $script:MascotForm.Show($Owner)
-    $style = [OCoffeeMascotNative]::GetWindowLong($script:MascotForm.Handle, -20)
-    [void][OCoffeeMascotNative]::SetWindowLong($script:MascotForm.Handle, -20, ($style -bor 0x80))
-    $script:MascotForm.Visible = $script:MascotEnabled
-    $script:MascotToggle.Text = $(if($script:MascotEnabled){'MASCOTE: ON'}else{'MASCOTE: OFF'})
-    $script:MascotMealKeys = @{}
-    $script:MascotMealUntil = [datetime]::MinValue
-    $script:MascotManualSleepUntil = [datetime]::MinValue
-    $script:MascotFrameIndex = 0
-    $script:MascotNextFrame = (Get-Date).AddMilliseconds(180)
-    $script:MascotNextBlink = (Get-Date).AddSeconds((Get-Random -Minimum 3 -Maximum 7))
-    $script:MascotBlinkUntil = [datetime]::MinValue
-    $script:MascotNextTip = (Get-Date).AddSeconds(35)
-    $script:MascotNextLogCheck = Get-Date
-    $script:MascotLogPath = Join-Path (Get-Paths).LogDir 'atualizacao.log'
-    $script:MascotLastError = if (Test-Path -LiteralPath $script:MascotLogPath) {
-        Get-Content -LiteralPath $script:MascotLogPath -Tail 12 -ErrorAction SilentlyContinue | Where-Object { $_ -match '(?i)erro|falha|exception' } | Select-Object -Last 1
-    } else { '' }
-    Set-MascotState 'walk' 'OC-01 online. Eu sou o único oCoffe!'
-
-    $script:MascotTimer = New-Object Windows.Forms.Timer
-    $script:MascotTimer.Interval = 90
-    $script:MascotTimer.Add_Tick({
-        if (-not $script:MascotEnabled) { return }
-        if ($script:MascotOwner.WindowState -eq [Windows.Forms.FormWindowState]::Minimized -or -not $script:MascotOwner.Visible) { $script:MascotForm.Hide(); return }
-        if (-not $script:MascotForm.Visible) { $script:MascotForm.Show($script:MascotOwner) }
-        $now = Get-Date
-        if ((Get-UserIdleSeconds) -ge $script:MascotIdleLimitSeconds) {
-            if ($script:MascotState -ne 'sleep') { Set-MascotState 'sleep' }
-            return
-        }
-        if ($script:MascotState -eq 'sleep') {
-            if ($script:MascotManualSleepUntil -gt $now) { return }
-            Set-MascotState 'walk' 'Você voltou! Vamos trabalhar.'
-        }
-        foreach ($meal in @(@(9,'LANCHE 09H','Hora do lanche! Café e energia.'),@(12,'ALMOÇO 12H','Hora do almoço. Pausa merecida!'),@(15,'MERENDA 15H','Merenda das 15h! Recarregando.'))) {
-            $key = "$($now.ToString('yyyyMMdd'))-$($meal[0])"
-            if ($now.Hour -eq $meal[0] -and $now.Minute -lt 20 -and -not $script:MascotMealKeys.ContainsKey($key)) {
-                $script:MascotMealKeys[$key] = $true
-                $script:MascotMeal.Text = $meal[1]
-                $script:MascotMealUntil = $now.AddMinutes(2)
-                Set-MascotState 'eat' $meal[2]
-                return
-            }
-        }
-        if ($script:MascotState -eq 'eat') {
-            if ($now -ge $script:MascotMealUntil) { Set-MascotState 'walk' 'Pausa concluída. De volta aos KPIs!' }
-            return
-        }
-        if ($now -ge $script:MascotNextLogCheck) {
-            $script:MascotNextLogCheck = $now.AddSeconds(8)
-            if (Test-Path -LiteralPath $script:MascotLogPath) {
-                $errorLine = Get-Content -LiteralPath $script:MascotLogPath -Tail 12 -ErrorAction SilentlyContinue | Where-Object { $_ -match '(?i)erro|falha|exception' } | Select-Object -Last 1
-                if ($errorLine -and $errorLine -ne $script:MascotLastError) {
-                    $script:MascotLastError = $errorLine
-                    Show-MascotNotice $errorLine 'alert'
-                    return
-                }
-            }
-        }
-        if ($now -ge $script:MascotNextTip -and $script:MascotState -in @('walk','idle')) {
-            $tips = @('Use F5 para atualizar o painel.', 'Confira o grupo antes de reportar.', 'O diagnóstico mostra itens que precisam de atenção.', 'Mantenha o Windows conectado nos horários programados.')
-            Show-MascotNotice ($tips | Get-Random) 'tip'
-            $script:MascotNextTip = $now.AddSeconds((Get-Random -Minimum 50 -Maximum 90))
-        }
-        if ($now -ge $script:MascotNextFrame) {
-            $script:MascotNextFrame = $now.AddMilliseconds(180)
-            $script:MascotFrameIndex++
-            if ($script:MascotState -eq 'walk') { Set-MascotFrame $(if(($script:MascotFrameIndex % 2) -eq 0){'walkA'}else{'walkB'}) }
-            elseif ($script:MascotState -eq 'idle') {
-                $script:MascotPicture.Top = 58 + ($script:MascotFrameIndex % 2) * 2
-            }
-        }
-        if ($now -ge $script:MascotNextBlink -and $script:MascotState -in @('walk','idle')) {
-            Set-MascotFrame 'blink'
-            $script:MascotBlinkUntil = $now.AddMilliseconds(280)
-            $script:MascotNextBlink = $now.AddSeconds((Get-Random -Minimum 4 -Maximum 10))
-        } elseif ($script:MascotBlinkUntil -gt [datetime]::MinValue -and $now -ge $script:MascotBlinkUntil) {
-            $script:MascotBlinkUntil = [datetime]::MinValue
-            Set-MascotFrame $(if($script:MascotState -eq 'walk'){'walkA'}else{'base'})
-        }
-        if ($now -ge $script:MascotNextAction) { Set-MascotState (Get-Random -InputObject @('walk','walk','play','idle')) }
-        Move-Mascot
-    })
-    $script:MascotTimer.Start()
 }
 
 $form = New-Object Windows.Forms.Form
@@ -1112,16 +770,6 @@ $form.Controls.Add($header)
 [void](New-Label $header 'OPERATIONS CONSOLE // Gestão de KPI' 28 51 390 20 9 $script:Colors.Muted)
 $versionLabel = New-Label $header "LOCAL MODE  |  v$($script:Version)  |  SEM IA" 780 27 285 28 10 $script:Colors.Cyan ([Drawing.FontStyle]::Bold)
 $versionLabel.TextAlign = [Drawing.ContentAlignment]::MiddleRight
-$script:MascotToggle = New-Button $header 'MASCOTE: ...' 602 21 155 38 {
-    if (-not $script:MascotForm) { return }
-    $script:MascotEnabled = -not $script:MascotEnabled
-    $script:MascotToggle.Text = $(if($script:MascotEnabled){'MASCOTE: ON'}else{'MASCOTE: OFF'})
-    if ($script:MascotEnabled) { $script:MascotForm.Show($form); Set-MascotState 'walk' 'oCoffe de volta ao trabalho!' } else { $script:MascotForm.Hide() }
-    $config = Read-OCoffeeConfig
-    Set-ConfigValue $config 'mascoteAtivo' $script:MascotEnabled
-    Save-OCoffeeConfig $config
-} $script:Colors.Green 'Mostra ou esconde o mascote. A preferência fica salva nesta máquina.'
-
 $tabs = New-Object Windows.Forms.TabControl
 $tabs.Location = New-Object Drawing.Point(18, 94)
 $tabs.Size = New-Object Drawing.Size(1066, 730)
@@ -1299,7 +947,7 @@ $script:AutomationToggleButton = New-Button $automation '[■] PAUSAR AUTOMAÇÃ
 [void](New-Button $automation 'WHATSAPP WEB' 838 224 174 46 { Start-Process 'https://web.whatsapp.com/' } $script:Colors.Green)
 [void](New-Label $automation 'RELATÓRIOS' 18 314 400 28 12 $script:Colors.Cyan ([Drawing.FontStyle]::Bold))
 [void](New-Button $automation 'REVISAR ÚLTIMA PARCIAL' 18 356 235 50 { Review-LatestPartial } $script:Colors.Cyan)
-[void](New-Button $automation 'EXECUTAR SLA DIÁRIO' 271 356 235 50 { Start-SlaUpdate } $script:Colors.Gold)
+[void](New-Button $automation 'SLA — PLANILHA MANUAL' 271 356 235 50 { Start-ManualSlaUpdate } $script:Colors.Gold 'Escolhe o XLSX Entrega realizada (Lista), atualiza a BD_D1 e abre a revisão do SLA.')
 [void](New-Button $automation 'ABRIR PASTA DE PRINTS' 524 356 235 50 { if(Test-Path $script:ReportPath){Start-Process explorer.exe -ArgumentList ('"{0}"' -f $script:ReportPath)} } $script:Colors.Cyan)
 [void](New-Button $automation 'ABRIR LOG COMPLETO' 777 356 235 50 { $p=Join-Path (Get-Paths).LogDir 'atualizacao.log';if(Test-Path $p){Start-Process notepad.exe -ArgumentList ('"{0}"' -f $p)}else{Show-OCoffeeMessage 'O log ainda não foi criado.'} } $script:Colors.Muted)
 [void](New-Label $automation 'EXPEDIDO, MAS NÃO CHEGOU — SOMENTE O LÍDER INICIA' 18 438 650 28 12 $script:Colors.Red ([Drawing.FontStyle]::Bold))
@@ -1370,19 +1018,9 @@ $expedidoTimer = New-Object Windows.Forms.Timer
 $expedidoTimer.Interval = 1000
 $expedidoTimer.Add_Tick({ Refresh-ExpedidoTimer })
 $expedidoTimer.Start()
-$form.Add_Shown({ Start-MascotSystem $form })
 $form.Add_FormClosed({
     $refreshTimer.Stop(); $refreshTimer.Dispose()
     $expedidoTimer.Stop(); $expedidoTimer.Dispose()
-    if ($script:MascotTimer) { $script:MascotTimer.Stop(); $script:MascotTimer.Dispose() }
-    if ($script:MascotFrames) {
-        foreach ($image in @($script:MascotFrames.Values | Select-Object -Unique)) {
-            if ($image) { $image.Dispose() }
-        }
-        $script:MascotFrames.Clear()
-    }
-    if ($script:MascotMenu) { $script:MascotMenu.Dispose() }
-    if ($script:MascotForm) { $script:MascotForm.Close(); $script:MascotForm.Dispose() }
     if ($script:InstanceCreated -and $script:InstanceMutex) {
         try { $script:InstanceMutex.ReleaseMutex() } catch {}
         $script:InstanceMutex.Dispose()

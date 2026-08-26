@@ -32,6 +32,4 @@
     ExpedidoBases = @('THE-PI', 'RSO-MA', 'SLZ-MA')
     ExpedidoModeloPlanilha = 'C:\oCoffe\templates\Modelo-Expedido-nao-chegou.xlsx'
     ExpedidoPastaSaida = '%USERPROFILE%\Downloads\oCoffe-Expedido-nao-chegou'
-    MascoteAtivo = $true
-    MascoteInatividadeMinutos = 2
 }

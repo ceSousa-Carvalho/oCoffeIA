@@ -72,7 +72,14 @@ async function setDateRange(page, start, end) {
     const toolbar = page.locator('.avue-crud__left > button:visible');
     await toolbar.nth(0).click();
     await page.waitForTimeout(5000);
-    await page.getByText('Centro de download', { exact: false }).first().click();
+    const downloadCenterCandidates = await page.getByText('Centro de download', { exact: false }).all();
+    const downloadCenter = await downloadCenterCandidates.reduce(async (foundPromise, candidate) => {
+      const found = await foundPromise;
+      if (found) return found;
+      return await candidate.isVisible().catch(() => false) ? candidate : null;
+    }, Promise.resolve(null));
+    if (!downloadCenter) throw new Error('O botão visível Centro de download não foi encontrado.');
+    await downloadCenter.click();
     let dialog = page.locator('.el-dialog__wrapper:visible').last();
     await dialog.waitFor({ state: 'visible', timeout: 30000 });
     let row = null;

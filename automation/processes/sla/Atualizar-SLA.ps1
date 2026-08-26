@@ -75,12 +75,17 @@ try {
 Write-SlaLog 'Tabela BD_D1 atualizada.'
 
 Add-Type -AssemblyName UIAutomationClient
-$root = [Windows.Automation.AutomationElement]::FromHandle($pbi.MainWindowHandle)
-$tabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TabItem)))
 $pageName = $(if ($config.slaPaginaPowerBi) { [string]$config.slaPaginaPowerBi } else { 'SLA - VENCIMENTO' })
 $tab = $null
-for ($i=0; $i -lt $tabs.Count; $i++) { if (($tabs.Item($i).Current.Name -replace '^(?:Hidden|Ocult[oa])\s*','') -eq $pageName) { $tab=$tabs.Item($i); break } }
-if (-not $tab) { throw "A página $pageName não foi encontrada." }
+for ($attempt=0; $attempt -lt 30 -and -not $tab; $attempt++) {
+    $root = [Windows.Automation.AutomationElement]::FromHandle($pbi.MainWindowHandle)
+    $tabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TabItem)))
+    for ($i=0; $i -lt $tabs.Count; $i++) {
+        if (($tabs.Item($i).Current.Name -replace '^(?:Hidden|Ocult[oa])\s*','') -eq $pageName) { $tab=$tabs.Item($i); break }
+    }
+    if (-not $tab) { Start-Sleep -Seconds 2 }
+}
+if (-not $tab) { throw "A página $pageName não foi encontrada após aguardar o carregamento do Power BI." }
 $selection=$null; [void]$tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern,[ref]$selection); ([Windows.Automation.SelectionItemPattern]$selection).Select()
 Start-Sleep -Seconds 3
 $dateText = $endDate.ToString('dd/MM/yyyy')

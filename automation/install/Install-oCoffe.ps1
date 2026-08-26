@@ -5,6 +5,20 @@
 
 $ErrorActionPreference = 'Stop'
 
+function Grant-LocalUsersConfigAccess([string]$Path) {
+    # Use o SID do grupo interno Usuários para funcionar em Windows em qualquer
+    # idioma e também quando outro administrador fornece as credenciais do UAC.
+    $identity = New-Object Security.Principal.SecurityIdentifier([Security.Principal.WellKnownSidType]::BuiltinUsersSid, $null)
+
+    $acl = Get-Acl -LiteralPath $Path
+    $rights = [Security.AccessControl.FileSystemRights]::Modify
+    $inheritance = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    $propagation = [Security.AccessControl.PropagationFlags]::None
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule($identity, $rights, $inheritance, $propagation, 'Allow')
+    $acl.SetAccessRule($rule)
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
 $origem = Split-Path -Parent $PSScriptRoot
 $processoOrigem = Join-Path $origem 'processes\gestao-kpi\Atualizar-GestaoKPI.ps1'
 $processoDestinoDir = Join-Path $Destino 'processes\gestao-kpi'
@@ -27,8 +41,6 @@ $uiOrigem = Join-Path $origem 'ui'
 $uiDestino = Join-Path $Destino 'ui'
 $toolsOrigem = Join-Path $origem 'tools'
 $toolsDestino = Join-Path $Destino 'tools'
-$assetsOrigem = Join-Path $origem 'assets'
-$assetsDestino = Join-Path $Destino 'assets'
 $templatesOrigem = Join-Path $origem 'templates'
 $templatesDestino = Join-Path $Destino 'templates'
 $pbixOrigem = Join-Path $templatesOrigem 'Gestão de KPI.pbix'
@@ -38,6 +50,8 @@ $orquestradorOrigem = Join-Path $origem 'Executar-oCoffe.ps1'
 $orquestradorDestino = Join-Path $Destino 'Executar-oCoffe.ps1'
 $manualPowerBiOrigem = Join-Path $origem 'Executar-PowerBI-Manual.ps1'
 $manualPowerBiDestino = Join-Path $Destino 'Executar-PowerBI-Manual.ps1'
+$manualSlaOrigem = Join-Path $origem 'Executar-SLA-Manual.ps1'
+$manualSlaDestino = Join-Path $Destino 'Executar-SLA-Manual.ps1'
 $orquestradorSlaOrigem = Join-Path $origem 'Executar-SLA.ps1'
 $orquestradorSlaDestino = Join-Path $Destino 'Executar-SLA.ps1'
 $existingConfig = if (Test-Path -LiteralPath $configFile) {
@@ -68,7 +82,7 @@ $edgeCandidates = @(
 $edgeDetectado = $edgeCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 if (-not $edgeDetectado) { $edgeDetectado = $chromeDetectado }
 
-New-Item -ItemType Directory -Path $processoDestinoDir, $whatsappDestino, $slaDestino, $feishuDestino, $desempenhoDestino, $expedidoDestino, $configDir, $cliDestino, $uiDestino, $browserDestino, $toolsDestino, $assetsDestino, $templatesDestino -Force | Out-Null
+New-Item -ItemType Directory -Path $processoDestinoDir, $whatsappDestino, $slaDestino, $feishuDestino, $desempenhoDestino, $expedidoDestino, $configDir, $cliDestino, $uiDestino, $browserDestino, $toolsDestino, $templatesDestino -Force | Out-Null
 $processoConteudo = Get-Content -LiteralPath $processoOrigem -Raw -Encoding UTF8
 Set-Content -LiteralPath $processoDestino -Value $processoConteudo -Encoding UTF8
 Copy-Item -Path (Join-Path $whatsappOrigem '*') -Destination $whatsappDestino -Recurse -Force
@@ -95,6 +109,10 @@ if (Test-Path -LiteralPath $manualPowerBiOrigem) {
     $manualPowerBiConteudo = Get-Content -LiteralPath $manualPowerBiOrigem -Raw -Encoding UTF8
     Set-Content -LiteralPath $manualPowerBiDestino -Value $manualPowerBiConteudo -Encoding UTF8
 }
+if (Test-Path -LiteralPath $manualSlaOrigem) {
+    $manualSlaConteudo = Get-Content -LiteralPath $manualSlaOrigem -Raw -Encoding UTF8
+    Set-Content -LiteralPath $manualSlaDestino -Value $manualSlaConteudo -Encoding UTF8
+}
 $orquestradorSlaConteudo = Get-Content -LiteralPath $orquestradorSlaOrigem -Raw -Encoding UTF8
 Set-Content -LiteralPath $orquestradorSlaDestino -Value $orquestradorSlaConteudo -Encoding UTF8
 Copy-Item -LiteralPath (Join-Path $cliOrigem 'ocoffe.cmd') -Destination $cliDestino -Force
@@ -106,11 +124,8 @@ Set-Content -LiteralPath (Join-Path $uiDestino 'oCoffeIA.ps1') -Value $uiConteud
 if (Test-Path -LiteralPath $toolsOrigem) {
     Copy-Item -Path (Join-Path $toolsOrigem '*') -Destination $toolsDestino -Recurse -Force
 }
-if (Test-Path -LiteralPath $assetsOrigem) {
-Copy-Item -Path (Join-Path $assetsOrigem '*') -Destination $assetsDestino -Recurse -Force
 if (Test-Path -LiteralPath $templatesOrigem) {
     Copy-Item -Path (Join-Path $templatesOrigem '*') -Destination $templatesDestino -Recurse -Force
-}
 }
 
 $powerBiProjeto = Join-Path $ProjetoKpi 'Gestão de KPI.pbix'
@@ -174,7 +189,7 @@ $baseDir = Join-Path $ProjetoKpi 'Base_Gestão_de_pedidos_'
 $powerBi = Join-Path $ProjetoKpi 'Gestão de KPI.pbix'
 $logDir = Join-Path $ProjetoKpi 'Automacao'
 $config = [ordered]@{
-    versao = '1.8.2'
+    versao = '1.8.5'
     jmsUrl = if ($existingConfig.jmsUrl) { [string]$existingConfig.jmsUrl } else { 'https://jmsbr.jtjms-br.com/index' }
     chrome = $chromeDetectado
     jmsBrowser = $chromeDetectado
@@ -207,8 +222,6 @@ $config = [ordered]@{
     expedidoBases = if ($existingConfig.expedidoBases) { @($existingConfig.expedidoBases) } elseif ($existingConfig.expedidoBaseSigla) { @([string]$existingConfig.expedidoBaseSigla) } else { @('THE-PI') }
     expedidoModeloPlanilha = if ($existingConfig.expedidoModeloPlanilha) { [string]$existingConfig.expedidoModeloPlanilha } else { (Join-Path $templatesDestino 'Modelo-Expedido-nao-chegou.xlsx') }
     expedidoPastaSaida = if ($existingConfig.expedidoPastaSaida) { [string]$existingConfig.expedidoPastaSaida } else { (Join-Path $env:USERPROFILE 'Downloads\oCoffe-Expedido-nao-chegou') }
-    mascoteAtivo = if ($null -ne $existingConfig.mascoteAtivo) { [bool]$existingConfig.mascoteAtivo } else { $true }
-    mascoteInatividadeMinutos = if ($existingConfig.mascoteInatividadeMinutos) { [int]$existingConfig.mascoteInatividadeMinutos } else { 2 }
 }
 $modelCandidate = [Environment]::ExpandEnvironmentVariables([string]$config.expedidoModeloPlanilha)
 $stableModel = Join-Path $templatesDestino 'Modelo-Expedido-nao-chegou.xlsx'
@@ -221,6 +234,10 @@ if (Test-Path -LiteralPath $modelCandidate) {
     $config.expedidoModeloPlanilha = $stableModel
 }
 $config | ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding UTF8
+# A interface é executada sem elevação. Como o instalador cria C:\oCoffe como
+# administrador, conceda ao mesmo usuário permissão para alterar apenas a
+# configuração local (nome do grupo, bases, horários e caminhos).
+Grant-LocalUsersConfigAccess -Path $configDir
 
 $baseDirConfigurada = [Environment]::ExpandEnvironmentVariables([string]$config.baseDir)
 $slaBaseDirConfigurada = [Environment]::ExpandEnvironmentVariables([string]$config.slaBaseDir)

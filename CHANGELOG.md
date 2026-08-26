@@ -2,6 +2,14 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.5] - 2026-08-26
+
+- Corrigida a abertura do Centro de download do SLA quando o JMS mantém elementos duplicados ocultos.
+- Adicionada espera pelo carregamento da página SLA - VENCIMENTO antes de atualizar filtros e salvar o Power BI.
+- Corrigida a permissão do arquivo de configuração para salvar grupos, bases, horários e caminhos em outras máquinas.
+- Adicionado o fluxo manual do SLA por planilha XLSX com atualização da BD_D1 e revisão.
+- Removido integralmente o mascote, suas animações, temporizador, configurações e imagens para reduzir consumo e tamanho do pacote.
+
 ## [1.8.2] - 2026-08-25
 
 - Adicionado modo manual para escolher uma planilha JMS e atualizar somente o Power BI.

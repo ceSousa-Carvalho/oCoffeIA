@@ -63,20 +63,6 @@ ACOMPANHAMENTO DOS ENTREGADORES
 CONFIGURAÇÃO ATIVA
 C:\oCoffe\config\gestao-kpi.json
 
-ROBÔ-MASCOTE OC-01
-- É um personagem exclusivo do oCoffeIA e usa a camisa da J&T Express.
-- Anda, brinca e exibe mensagens aleatórias sem bloquear os botões da interface.
-- Dorme em sua cama após 2 minutos sem atividade do usuário e acorda no retorno.
-- Faz lanche às 09:00, almoço às 12:00 e merenda às 15:00.
-- O botão MASCOTE: ON/OFF salva a preferência no computador.
-- Existe somente uma instância do oCoffeIA e do OC-01 por usuário.
-- Toda a animação funciona localmente e não utiliza serviço de IA.
-- Braços e pernas se alternam durante a caminhada, os olhos piscam e a cabeça balança.
-- Ao brincar, o OC-01 escolhe um botão visível, caminha até ele e aponta sua utilidade.
-- Alertas encontrados no log aparecem em vermelho; dicas úteis aparecem no balão.
-- O painel principal agora ocupa toda a janela com agenda, atividade recente e saúde da estação.
-- Clique no corpo ou no balão do OC-01 para conversar, pedir dicas, brincar, abrir o diagnóstico, descansar ou ocultá-lo.
-
 DESINSTALAR
 Dê dois cliques em DESINSTALAR-oCoffeIA.cmd. A tarefa automática será removida
 e os dados locais serão preservados para recuperação.

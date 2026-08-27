@@ -9,8 +9,15 @@ Add-Type @'
 using System;using System.Runtime.InteropServices;public static class SlaCapture{[StructLayout(LayoutKind.Sequential)]public struct RECT{public int Left,Top,Right,Bottom;}[DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out RECT r);[DllImport("user32.dll")]public static extern bool ShowWindow(IntPtr h,int c);[DllImport("user32.dll")]public static extern bool PrintWindow(IntPtr h,IntPtr d,uint f);}
 '@
 [SlaCapture]::ShowWindow($pbi.MainWindowHandle,3)|Out-Null;Start-Sleep -Seconds 2
-Select-PowerBIReportPage -WindowHandle $pbi.MainWindowHandle -PageName $slaPage
-$verifiedDates=Set-PowerBIDateRangeVerified -WindowHandle $pbi.MainWindowHandle -Date $endDateValue -Context 'SLA antes da captura'
+$verifiedDates=$null
+for($attempt=1;$attempt -le 6 -and -not $verifiedDates;$attempt++){
+    Select-PowerBIReportPage -WindowHandle $pbi.MainWindowHandle -PageName $slaPage
+    Start-Sleep -Seconds 3
+    try{$verifiedDates=Set-PowerBIDateRangeVerified -WindowHandle $pbi.MainWindowHandle -Date $endDateValue -Context 'SLA antes da captura'}catch{
+        if($attempt -eq 6){throw}
+        Start-Sleep -Seconds 2
+    }
+}
 $rect=New-Object SlaCapture+RECT;[void][SlaCapture]::GetWindowRect($pbi.MainWindowHandle,[ref]$rect)
 $shell=New-Object -ComObject WScript.Shell;[void]$shell.AppActivate($pbi.Id);$shell.SendKeys('{ESC}');Start-Sleep -Seconds 1
 $bitmap=[Drawing.Bitmap]::new($rect.Right-$rect.Left,$rect.Bottom-$rect.Top);$graphics=[Drawing.Graphics]::FromImage($bitmap)

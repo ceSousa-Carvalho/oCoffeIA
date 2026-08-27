@@ -15,6 +15,12 @@ const downloads = expand(config.downloads) || path.join(process.env.USERPROFILE,
 const logDir = expand(config.logDir) || 'C:\\Gestão de KPI_Operacional_v2\\Automacao';
 const logFile = path.join(logDir, 'navegador.log');
 const jmsUrl = config.jmsUrl || 'https://jmsbr.jtjms-br.com/index';
+const partialFilters = {
+  financialCenter: config.parcialCentroFinanceiro || 'CE',
+  franchisee: config.parcialFranqueado || 'CE|230000',
+  deliveryBase: config.parcialBaseEntrega || 'THE-PI|886101',
+  unifiedOrders: config.parcialPedidosUnificados || ['Não', 'Pedido principal']
+};
 
 fs.mkdirSync(profile, { recursive: true });
 fs.mkdirSync(logDir, { recursive: true });
@@ -52,6 +58,50 @@ async function setToday(page) {
 
   if (changed < 2) throw new Error('Não foi possível identificar os dois campos de data.');
   log(`Período configurado para ${day}.`);
+}
+
+const normalize = value => String(value || '').replace(/\s+/g, '').toLocaleLowerCase('pt-BR');
+const matchesFilter = (actual, expected) => normalize(expected).split('|').every(part => normalize(actual).includes(part));
+
+async function setSearchFilter(page, labelText, value) {
+  const label = page.getByText(labelText, { exact: false }).first();
+  await label.waitFor({ state: 'visible', timeout: 30000 });
+  const input = label.locator('xpath=following::input[1]');
+  const currentValue = await input.inputValue();
+  if (matchesFilter(currentValue, value)) return;
+  if (await input.isDisabled()) throw new Error(`${labelText} está bloqueado com o valor ${currentValue}; esperado ${value}.`);
+  await input.fill(value);
+  await page.waitForTimeout(800);
+  const options = page.locator('.el-autocomplete-suggestion:visible li, .el-select-dropdown:visible .el-select-dropdown__item');
+  let selected = false;
+  for (let index = 0; index < await options.count(); index++) {
+    const option = options.nth(index);
+    if (matchesFilter(await option.innerText(), value)) {
+      await option.click();
+      selected = true;
+      break;
+    }
+  }
+  if (!selected) throw new Error(`O valor ${value} não foi encontrado no filtro ${labelText}.`);
+  const actual = await input.inputValue();
+  if (!matchesFilter(actual, value)) throw new Error(`${labelText} deveria ser ${value}, mas ficou ${actual}.`);
+}
+
+async function setUnifiedOrderFilter(page, expectedValues) {
+  const label = page.getByText('Pedido unificado?', { exact: false }).first();
+  await label.waitFor({ state: 'visible', timeout: 30000 });
+  const input = label.locator('xpath=following::input[1]');
+  await input.click();
+  const options = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
+  await options.first().waitFor({ state: 'visible', timeout: 10000 });
+  for (let index = 0; index < await options.count(); index++) {
+    const option = options.nth(index);
+    const text = (await option.innerText()).trim();
+    const shouldBeSelected = expectedValues.some(value => normalize(value) === normalize(text));
+    const isSelected = (await option.getAttribute('class') || '').split(/\s+/).includes('selected');
+    if (shouldBeSelected !== isSelected) await option.click();
+  }
+  await page.keyboard.press('Escape');
 }
 
 (async () => {
@@ -99,6 +149,11 @@ async function setToday(page) {
     const deliveryTime = page.locator('.search-time-range .el-radio').nth(1);
     await deliveryTime.click();
     await setToday(page);
+    await setSearchFilter(page, 'Centro financeiro de entrega', partialFilters.financialCenter);
+    await setSearchFilter(page, 'Franqueado', partialFilters.franchisee);
+    await setSearchFilter(page, 'Base de entrega', partialFilters.deliveryBase);
+    await setUnifiedOrderFilter(page, partialFilters.unifiedOrders);
+    log(`Filtros da parcial configurados: centro ${partialFilters.financialCenter}; franqueado ${partialFilters.franchisee}; base ${partialFilters.deliveryBase}; pedido unificado ${partialFilters.unifiedOrders.join(' + ')}.`);
     const toolbarButtons = page.locator('.avue-crud__left > button');
     await toolbarButtons.nth(0).click();
     await page.waitForTimeout(5000);

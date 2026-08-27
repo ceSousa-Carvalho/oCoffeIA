@@ -61,10 +61,14 @@ async function setDateRange(page, start, end) {
 
 (async () => {
   const today = new Date();
-  const endDate = new Date(today); endDate.setDate(endDate.getDate() - 1);
+  // O SLA deve incluir o dia da execução. Antes, a data final era fixada em D-1,
+  // fazendo uma execução no dia 27 consultar somente até o dia 26.
+  const endDate = new Date(today);
   const startDate = new Date(endDate); startDate.setDate(startDate.getDate() - historyDays);
+  const powerBiDate = new Date(endDate); powerBiDate.setDate(powerBiDate.getDate() - 1);
   const start = isoDate(startDate);
   const end = isoDate(endDate);
+  const powerBiEnd = isoDate(powerBiDate);
   const { browser, context, page: sessionPage } = await getJmsSession({ chrome, profile, jmsUrl, log });
   let page;
   try {
@@ -145,7 +149,7 @@ async function setDateRange(page, start, end) {
     const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
     const destination = path.join(downloads, `Entrega realizada(Lista)-${stamp}.xlsx`);
     await download.saveAs(destination);
-    const metadata = { file: destination, startDate: start, endDate: end, downloadedAt: new Date().toISOString() };
+    const metadata = { file: destination, startDate: start, endDate: end, powerBiDate: powerBiEnd, downloadedAt: new Date().toISOString() };
     fs.writeFileSync(path.join(logDir, 'ultimo-sla-download.json'), JSON.stringify(metadata, null, 2), 'utf8');
     log(`SLA baixado: ${destination}`);
   } catch (error) {

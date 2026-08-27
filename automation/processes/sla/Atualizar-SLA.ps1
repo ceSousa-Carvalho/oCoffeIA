@@ -17,6 +17,8 @@ $metadata = Get-Content -LiteralPath $metadataFile -Raw -Encoding UTF8 | Convert
 $source = [Environment]::ExpandEnvironmentVariables([string]$metadata.file)
 if (-not (Test-Path -LiteralPath $source)) { throw "Arquivo SLA baixado não encontrado: $source" }
 $endDate = [datetime]::ParseExact([string]$metadata.endDate, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+$powerBiDateText = $(if ($metadata.powerBiDate) { [string]$metadata.powerBiDate } else { [string]$metadata.endDate })
+$powerBiDate = [datetime]::ParseExact($powerBiDateText, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
 
 if ((Test-Path -LiteralPath $stateFile) -and -not $Force) {
     $previous = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -88,15 +90,15 @@ for ($attempt=0; $attempt -lt 30 -and -not $tab; $attempt++) {
 if (-not $tab) { throw "A página $pageName não foi encontrada após aguardar o carregamento do Power BI." }
 $selection=$null; [void]$tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern,[ref]$selection); ([Windows.Automation.SelectionItemPattern]$selection).Select()
 Start-Sleep -Seconds 3
-$dateText = $endDate.ToString('dd/MM/yyyy')
+$dateText = $powerBiDate.ToString('dd/MM/yyyy')
 $dateHelper = 'C:\oCoffe\tools\PowerBI-DateRange.ps1'
 if (-not (Test-Path -LiteralPath $dateHelper)) { throw "Componente de datas não encontrado: $dateHelper" }
 . $dateHelper
-$verifiedDates = Set-PowerBIDateRangeVerified -WindowHandle $pbi.MainWindowHandle -Date $endDate -Context 'SLA'
+$verifiedDates = Set-PowerBIDateRangeVerified -WindowHandle $pbi.MainWindowHandle -Date $powerBiDate -Context 'SLA'
 Write-SlaLog "Filtros do SLA verificados: início $($verifiedDates.Start), final $($verifiedDates.End)."
 Start-Sleep -Seconds 2
 $shell=New-Object -ComObject WScript.Shell
 [void]$shell.AppActivate($pbi.Id); $shell.SendKeys('^s')
-$state=[ordered]@{executionDate=Get-Date -Format 'yyyy-MM-dd';completedAt=(Get-Date).ToString('o');endDate=$metadata.endDate;file=$destination}
+$state=[ordered]@{executionDate=Get-Date -Format 'yyyy-MM-dd';completedAt=(Get-Date).ToString('o');endDate=$metadata.endDate;powerBiDate=$powerBiDateText;file=$destination}
 $state|ConvertTo-Json|Set-Content -LiteralPath $stateFile -Encoding UTF8
 Write-SlaLog "SLA concluído para a data final $dateText."

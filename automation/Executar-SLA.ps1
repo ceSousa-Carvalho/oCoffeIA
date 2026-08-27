@@ -11,5 +11,6 @@ try{
     & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File (Join-Path $root 'processes\sla\Atualizar-SLA.ps1') $forceArg
     if($LASTEXITCODE -eq 10){Log 'SLA já atualizado hoje.';exit 0};if($LASTEXITCODE){throw "Atualização SLA falhou: $LASTEXITCODE"}
     $meta=Get-Content -LiteralPath (Join-Path $slaLogDir 'ultimo-sla-download.json') -Raw -Encoding UTF8|ConvertFrom-Json
-    & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File (Join-Path $root 'processes\sla\Capturar-SLA.ps1') -EndDate $meta.endDate;if($LASTEXITCODE){throw "Captura SLA falhou: $LASTEXITCODE"};Log 'SLA diário concluído e enviado para revisão.'
+    $captureDate=$(if($meta.powerBiDate){[string]$meta.powerBiDate}else{[string]$meta.endDate})
+    & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File (Join-Path $root 'processes\sla\Capturar-SLA.ps1') -EndDate $captureDate;if($LASTEXITCODE){throw "Captura SLA falhou: $LASTEXITCODE"};Log 'SLA diário concluído e enviado para revisão.'
 }catch{Log "ERRO: $($_.Exception.Message)";exit 1}

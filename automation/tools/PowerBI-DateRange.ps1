@@ -40,6 +40,22 @@ function Select-PowerBIReportPage {
         [Windows.Automation.AutomationElement]::ControlTypeProperty,
         [Windows.Automation.ControlType]::TabItem
     )
+
+    # As abas do relatório não ficam expostas à automação quando o Power BI está
+    # nas exibições Dados, Modelo, DAX ou TMDL. Volta primeiro para Relatório.
+    $viewTabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+    for ($index = 0; $index -lt $viewTabs.Count; $index++) {
+        $viewTab = $viewTabs.Item($index)
+        if ([string]$viewTab.Current.Name -notmatch '^(Exibição de relatório|Report view)$') { continue }
+        $viewPattern = $null
+        if ($viewTab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$viewPattern)) {
+            ([Windows.Automation.SelectionItemPattern]$viewPattern).Select()
+            Start-Sleep -Seconds 3
+            break
+        }
+    }
+
+    $root = [Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
     $tabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
     $normalizedTarget = (($PageName -replace '^(?:Hidden|Ocult[oa])\s*', '') -replace '\s+', '').ToUpperInvariant()
     for ($index = 0; $index -lt $tabs.Count; $index++) {

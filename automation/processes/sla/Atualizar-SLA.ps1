@@ -70,30 +70,22 @@ try {
     $model = $server.Databases[0].Model
     $table = $model.Tables.Find('BD_D1')
     if (-not $table) { throw 'Tabela BD_D1 não encontrada no Power BI.' }
+    $updateTable = $model.Tables.Find('BD_Atualização')
+    if (-not $updateTable) { throw 'Tabela BD_Atualização não encontrada no Power BI.' }
     $table.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
+    $updateTable.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
     $model.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Calculate)
     $model.SaveChanges()
 } finally { $server.Disconnect() }
-Write-SlaLog 'Tabela BD_D1 atualizada.'
+Write-SlaLog 'Tabelas BD_D1 e BD_Atualização atualizadas.'
 
 Add-Type -AssemblyName UIAutomationClient
 $pageName = $(if ($config.slaPaginaPowerBi) { [string]$config.slaPaginaPowerBi } else { 'SLA - VENCIMENTO' })
-$tab = $null
-for ($attempt=0; $attempt -lt 30 -and -not $tab; $attempt++) {
-    $root = [Windows.Automation.AutomationElement]::FromHandle($pbi.MainWindowHandle)
-    $tabs = $root.FindAll([Windows.Automation.TreeScope]::Descendants, (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::TabItem)))
-    for ($i=0; $i -lt $tabs.Count; $i++) {
-        if (($tabs.Item($i).Current.Name -replace '^(?:Hidden|Ocult[oa])\s*','') -eq $pageName) { $tab=$tabs.Item($i); break }
-    }
-    if (-not $tab) { Start-Sleep -Seconds 2 }
-}
-if (-not $tab) { throw "A página $pageName não foi encontrada após aguardar o carregamento do Power BI." }
-$selection=$null; [void]$tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern,[ref]$selection); ([Windows.Automation.SelectionItemPattern]$selection).Select()
-Start-Sleep -Seconds 3
 $dateText = $powerBiDate.ToString('dd/MM/yyyy')
 $dateHelper = 'C:\oCoffe\tools\PowerBI-DateRange.ps1'
 if (-not (Test-Path -LiteralPath $dateHelper)) { throw "Componente de datas não encontrado: $dateHelper" }
 . $dateHelper
+Select-PowerBIReportPage -WindowHandle $pbi.MainWindowHandle -PageName $pageName
 $verifiedDates = Set-PowerBIDateRangeVerified -WindowHandle $pbi.MainWindowHandle -Date $powerBiDate -Context 'SLA'
 Write-SlaLog "Filtros do SLA verificados: início $($verifiedDates.Start), final $($verifiedDates.End)."
 Start-Sleep -Seconds 2

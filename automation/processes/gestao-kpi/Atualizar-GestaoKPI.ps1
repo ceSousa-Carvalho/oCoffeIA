@@ -70,7 +70,10 @@ function Invoke-PowerBISchemaAndDataRefresh($PowerBIProcess) {
         $model = $server.Databases[0].Model
         $table = $model.Tables.Find('Base_Gestão_de_pedidos_')
         if (-not $table) { throw 'Tabela Base_Gestão_de_pedidos_ não encontrada no modelo.' }
+        $updateTable = $model.Tables.Find('BD_Atualização')
+        if (-not $updateTable) { throw 'Tabela BD_Atualização não encontrada no modelo.' }
         $table.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
+        $updateTable.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
         $model.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Calculate)
         $model.SaveChanges()
     } finally {

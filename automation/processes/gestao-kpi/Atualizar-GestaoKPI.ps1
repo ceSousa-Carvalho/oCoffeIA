@@ -83,18 +83,18 @@ function Invoke-PowerBISchemaAndDataRefresh($PowerBIProcess) {
 
 try {
     $downloadCandidate = Get-ChildItem -LiteralPath $downloads -Filter $pattern -File |
-        Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-2) } |
-        Sort-Object LastWriteTime -Descending |
+        Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-12) } |
+        Sort-Object Length, LastWriteTime -Descending |
         Select-Object -First 1
 
     $baseCandidate = Get-ChildItem -LiteralPath $baseDir -Filter $pattern -File |
-        Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-2) } |
-        Sort-Object LastWriteTime -Descending |
+        Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-12) } |
+        Sort-Object Length, LastWriteTime -Descending |
         Select-Object -First 1
 
     $candidate = @($downloadCandidate, $baseCandidate) |
         Where-Object { $_ } |
-        Sort-Object LastWriteTime -Descending |
+        Sort-Object Length, LastWriteTime -Descending |
         Select-Object -First 1
 
     if (-not $candidate) {

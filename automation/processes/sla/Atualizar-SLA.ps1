@@ -72,6 +72,22 @@ try {
     if (-not $table) { throw 'Tabela BD_D1 não encontrada no Power BI.' }
     $updateTable = $model.Tables.Find('BD_Atualização')
     if (-not $updateTable) { throw 'Tabela BD_Atualização não encontrada no Power BI.' }
+    $measureTable = $model.Tables.Find('Medidas')
+    $deliveredMeasure = $(if ($measureTable) { $measureTable.Measures.Find('Entregue') } else { $null })
+    if (-not $deliveredMeasure) { throw 'Medida Entregue não encontrada no Power BI.' }
+    $deliveredMeasure.Expression = @'
+IF (
+    ISFILTERED ( BD_D1[Data prevista de entrega] ),
+    CALCULATE (
+        [Total de Pedidos (SC)],
+        NOT ( ISBLANK ( BD_D1[Horário da entrega] ) )
+    ),
+    CALCULATE (
+        [Expedido_GB],
+        'Base_Gestão_de_Pedidos_'[Marca de assinatura] = "Entregue"
+    )
+)
+'@
     $table.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
     $updateTable.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
     $model.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Calculate)
@@ -80,7 +96,7 @@ try {
 Write-SlaLog 'Tabelas BD_D1 e BD_Atualização atualizadas.'
 
 Add-Type -AssemblyName UIAutomationClient
-$pageName = $(if ($config.slaPaginaPowerBi) { [string]$config.slaPaginaPowerBi } else { 'SLA - VENCIMENTO' })
+$pageName = $(if ($config.slaPaginaPowerBi) { [string]$config.slaPaginaPowerBi } else { 'Parcial SLA' })
 $dateText = $powerBiDate.ToString('dd/MM/yyyy')
 $dateHelper = 'C:\oCoffe\tools\PowerBI-DateRange.ps1'
 if (-not (Test-Path -LiteralPath $dateHelper)) { throw "Componente de datas não encontrado: $dateHelper" }

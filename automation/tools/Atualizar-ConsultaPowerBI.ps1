@@ -2,13 +2,16 @@
 
 $pbix = 'C:\Gestão de KPI_Operacional_v2\Gestão de KPI.pbix'
 $backupDir = 'C:\Gestão de KPI_Operacional_v2\Automacao\backup-pbix'
-$powerBiBin = (Get-Process PBIDesktop -ErrorAction Stop | Select-Object -First 1).Path | Split-Path
+$powerBiProcess = Get-Process PBIDesktop -ErrorAction Stop |
+    Where-Object MainWindowTitle -like '*Gestão de KPI*' |
+    Select-Object -First 1
+$powerBiBin = $powerBiProcess.Path | Split-Path
 $workspace = Get-CimInstance Win32_Process |
-    Where-Object { $_.Name -eq 'msmdsrv.exe' -and $_.CommandLine -match 'AnalysisServicesWorkspace_' } |
+    Where-Object { $_.Name -eq 'msmdsrv.exe' -and $_.ParentProcessId -eq $powerBiProcess.Id } |
     Select-Object -First 1
 if (-not $workspace) { throw 'O mecanismo interno do Power BI não está em execução.' }
 $dataPath = [regex]::Match($workspace.CommandLine, '-s\s+"([^"]+)"').Groups[1].Value
-$portFile = Join-Path (Split-Path $dataPath) 'Data\msmdsrv.port.txt'
+$portFile = Join-Path $dataPath 'msmdsrv.port.txt'
 $port = (Get-Content -LiteralPath $portFile -Encoding Unicode -Raw).Trim([char]0).Trim()
 
 New-Item -ItemType Directory -Path $backupDir -Force | Out-Null

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 public static class PowerBIInputHelper {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 }
@@ -15,17 +16,10 @@ public static class PowerBIInputHelper {
 
 function Close-PowerBIOverlays {
     param([Parameter(Mandatory = $true)][IntPtr]$WindowHandle, [Parameter(Mandatory = $true)]$Shell)
-    $rect = New-Object PowerBIInputHelper+RECT
-    if ([PowerBIInputHelper]::GetWindowRect($WindowHandle, [ref]$rect)) {
-        $x = $rect.Left + [int](($rect.Right - $rect.Left) * 0.035)
-        $y = $rect.Top + [int](($rect.Bottom - $rect.Top) * 0.22)
-        [void][PowerBIInputHelper]::SetCursorPos($x, $y)
-        1..2 | ForEach-Object {
-            [PowerBIInputHelper]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-            [PowerBIInputHelper]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-            Start-Sleep -Milliseconds 450
-        }
-    }
+    # Não clique no canvas para fechar o calendário: nessa página o ponto usado
+    # anteriormente ficava dentro da matriz e alterava o nível da hierarquia.
+    [void][PowerBIInputHelper]::SetForegroundWindow($WindowHandle)
+    Start-Sleep -Milliseconds 250
     1..2 | ForEach-Object { $Shell.SendKeys('{ESC}'); Start-Sleep -Milliseconds 250 }
     Start-Sleep -Seconds 1
 }

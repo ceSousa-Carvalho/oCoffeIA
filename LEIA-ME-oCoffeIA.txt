@@ -49,10 +49,10 @@ Abra o atalho oCoffeIA para:
 
 SLA DIÁRIO
 - JMS: Indicadores de Negócios > Prazo > Entrega realizada.
-- Data final: dia anterior à execução.
+- Data final: dia da execução, incluindo os pacotes que vencem hoje.
 - Os dois filtros do Power BI recebem a mesma data final do JMS.
 - Pasta: Base_vencimentos.
-- Power BI: tabela BD_D1 e página SLA - VENCIMENTO.
+- Power BI: tabela BD_D1 e página Parcial SLA.
 - Feishu: o usuário confere o grupo, a imagem e a mensagem antes de enviar.
 
 ACOMPANHAMENTO DOS ENTREGADORES

@@ -14,7 +14,7 @@
     SlaDiasHistorico = 21
     SlaBaseEntrega = 'THE-PI'
     SlaHorario = '07:00'
-    SlaPaginaPowerBI = 'SLA - VENCIMENTO'
+    SlaPaginaPowerBI = 'Parcial SLA'
     SlaGrupoFeishu = 'MA/PI - Hub/Pdd 网点管理'
     SlaMensagemFeishu = "Segue o SLA de {dataFinalJms}.`n`nAtualização gerada pelo Assistente oCoffeIA"
     LogDir = 'C:\Gestão de KPI_Operacional_v2\Automacao'

@@ -4,7 +4,7 @@ $reportDir='C:\oCoffe\reports';New-Item -ItemType Directory -Path $reportDir -Fo
 $pbi=Get-Process PBIDesktop|Where-Object MainWindowTitle -like '*Gestão de KPI*'|Select-Object -First 1;if(-not $pbi){throw 'Power BI não encontrado.'}
 $endDateValue=[datetime]::ParseExact($EndDate,'yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture)
 $dateHelper='C:\oCoffe\tools\PowerBI-DateRange.ps1';if(-not(Test-Path -LiteralPath $dateHelper)){throw "Componente de datas não encontrado: $dateHelper"};. $dateHelper
-$configFile='C:\oCoffe\config\gestao-kpi.json';$slaPage='SLA - VENCIMENTO';if(Test-Path -LiteralPath $configFile){$config=Get-Content -LiteralPath $configFile -Raw -Encoding UTF8|ConvertFrom-Json;if(-not[string]::IsNullOrWhiteSpace($config.slaPaginaPowerBi)){$slaPage=[string]$config.slaPaginaPowerBi}}
+$configFile='C:\oCoffe\config\gestao-kpi.json';$slaPage='Parcial SLA';if(Test-Path -LiteralPath $configFile){$config=Get-Content -LiteralPath $configFile -Raw -Encoding UTF8|ConvertFrom-Json;if(-not[string]::IsNullOrWhiteSpace($config.slaPaginaPowerBi)){$slaPage=[string]$config.slaPaginaPowerBi}}
 Add-Type @'
 using System;using System.Runtime.InteropServices;public static class SlaCapture{[StructLayout(LayoutKind.Sequential)]public struct RECT{public int Left,Top,Right,Bottom;}[DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out RECT r);[DllImport("user32.dll")]public static extern bool ShowWindow(IntPtr h,int c);[DllImport("user32.dll")]public static extern bool PrintWindow(IntPtr h,IntPtr d,uint f);}
 '@

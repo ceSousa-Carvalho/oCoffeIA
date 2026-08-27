@@ -17,7 +17,7 @@ $metadata = Get-Content -LiteralPath $metadataFile -Raw -Encoding UTF8 | Convert
 $source = [Environment]::ExpandEnvironmentVariables([string]$metadata.file)
 if (-not (Test-Path -LiteralPath $source)) { throw "Arquivo SLA baixado não encontrado: $source" }
 $endDate = [datetime]::ParseExact([string]$metadata.endDate, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
-$powerBiDateText = $(if ($metadata.powerBiDate) { [string]$metadata.powerBiDate } else { [string]$metadata.endDate })
+$powerBiDateText = [string]$metadata.endDate
 $powerBiDate = [datetime]::ParseExact($powerBiDateText, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
 
 if ((Test-Path -LiteralPath $stateFile) -and -not $Force) {

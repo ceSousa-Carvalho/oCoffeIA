@@ -189,7 +189,7 @@ $baseDir = Join-Path $ProjetoKpi 'Base_Gestão_de_pedidos_'
 $powerBi = Join-Path $ProjetoKpi 'Gestão de KPI.pbix'
 $logDir = Join-Path $ProjetoKpi 'Automacao'
 $config = [ordered]@{
-    versao = '1.8.6'
+    versao = '1.8.7'
     jmsUrl = if ($existingConfig.jmsUrl) { [string]$existingConfig.jmsUrl } else { 'https://jmsbr.jtjms-br.com/index' }
     chrome = $chromeDetectado
     jmsBrowser = $chromeDetectado
@@ -274,7 +274,7 @@ if ([bool]$config.automacaoPausada) { Disable-ScheduledTask -TaskName 'JMS - Atu
 
 $slaAction=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f $orquestradorSlaDestino)
 $slaTrigger=New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact([string]$config.slaHorario,'HH:mm',[Globalization.CultureInfo]::InvariantCulture))
-Register-ScheduledTask -TaskName 'JMS - Atualizar SLA' -Action $slaAction -Trigger $slaTrigger -Settings $settings -Description 'Atualiza o SLA uma vez ao dia e solicita confirmação antes do Feishu.' -Force|Out-Null
+Register-ScheduledTask -TaskName 'JMS - Atualizar SLA' -Action $slaAction -Trigger $slaTrigger -Settings $settings -Description 'Atualiza o SLA uma vez ao dia no Power BI, sem captura ou envio.' -Force|Out-Null
 
 Write-Host 'oCoffe instalado com sucesso.' -ForegroundColor Green
 Write-Host "Script: $processoDestino"

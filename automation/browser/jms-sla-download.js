@@ -61,9 +61,9 @@ async function setDateRange(page, start, end) {
 
 (async () => {
   const today = new Date();
-  // O SLA deve incluir o dia da execução. Antes, a data final era fixada em D-1,
-  // fazendo uma execução no dia 27 consultar somente até o dia 26.
   const endDate = new Date(today);
+  // O JMS deve consultar apenas dias encerrados: a data final é ontem (D-1).
+  endDate.setDate(endDate.getDate() - 1);
   const startDate = new Date(endDate); startDate.setDate(startDate.getDate() - historyDays);
   const start = isoDate(startDate);
   const end = isoDate(endDate);
@@ -147,8 +147,7 @@ async function setDateRange(page, start, end) {
     const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
     const destination = path.join(downloads, `Entrega realizada(Lista)-${stamp}.xlsx`);
     await download.saveAs(destination);
-    // O Power BI deve usar a mesma data final consultada no JMS. Usar D-1
-    // ocultava os pacotes cujo vencimento ocorre no dia da execução.
+    // O Power BI usa a mesma data final (D-1) consultada no JMS.
     const metadata = { file: destination, startDate: start, endDate: end, powerBiDate: end, downloadedAt: new Date().toISOString() };
     fs.writeFileSync(path.join(logDir, 'ultimo-sla-download.json'), JSON.stringify(metadata, null, 2), 'utf8');
     log(`SLA baixado: ${destination}`);

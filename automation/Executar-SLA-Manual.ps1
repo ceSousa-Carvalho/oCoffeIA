@@ -10,7 +10,6 @@ $ErrorActionPreference = 'Stop'
 $root = 'C:\oCoffe'
 $configFile = Join-Path $root 'config\gestao-kpi.json'
 $updateScript = Join-Path $root 'processes\sla\Atualizar-SLA.ps1'
-$captureScript = Join-Path $root 'processes\sla\Capturar-SLA.ps1'
 $logFile = Join-Path $root 'sla.log'
 
 function Write-ManualSlaLog([string]$Message) {
@@ -56,9 +55,7 @@ try {
     & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File $updateScript -Force
     if ($LASTEXITCODE -ne 0) { throw "A atualização da tabela BD_D1 terminou com código $LASTEXITCODE." }
 
-    & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $captureScript -EndDate $DataFinal
-    if ($LASTEXITCODE -ne 0) { throw "A captura do SLA terminou com código $LASTEXITCODE." }
-    Write-ManualSlaLog 'fluxo concluído; revisão aberta para confirmação.'
+    Write-ManualSlaLog 'fluxo concluído; Power BI atualizado e salvo.'
 } catch {
     Write-ManualSlaLog "ERRO: $($_.Exception.Message)"
     Add-Type -AssemblyName System.Windows.Forms

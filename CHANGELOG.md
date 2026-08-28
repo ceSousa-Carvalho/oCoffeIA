@@ -2,6 +2,12 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.7] - 2026-08-28
+
+- Restaurada a data final do SLA no JMS para ontem (D-1), mantendo o mesmo dia no filtro do Power BI.
+- Removidas a captura de tela, a revisão e a preparação de envio do SLA; o fluxo agora somente atualiza e salva o Power BI.
+- Mantida a alimentação manual por planilha XLSX pela interface do oCoffeIA, também sem captura ou envio.
+
 ## [1.8.6] - 2026-08-26
 
 - Ajustado o SLA para selecionar Lista e Por data de envio antes de preencher o período.

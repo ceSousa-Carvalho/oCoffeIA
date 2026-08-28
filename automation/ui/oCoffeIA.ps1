@@ -19,7 +19,7 @@ if (-not $script:InstanceCreated) {
 
 $script:Root = 'C:\oCoffe'
 $script:ConfigPath = Join-Path $script:Root 'config\gestao-kpi.json'
-$script:Version = '1.8.6'
+$script:Version = '1.8.7'
 if (Test-Path -LiteralPath $script:ConfigPath) {
     try {
         $versionConfig = Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -447,7 +447,7 @@ function Start-SlaUpdate {
     $args = "-NoProfile -ExecutionPolicy Bypass -File `"C:\oCoffe\Executar-SLA.ps1`""
     if ($force) { $args += ' -Force' }
     Start-Process powershell.exe -WindowStyle Hidden -ArgumentList $args
-    Write-Terminal 'SLA iniciado: JMS > Base_vencimentos > BD_D1 > Feishu.' $script:Colors.Green
+    Write-Terminal 'SLA iniciado: JMS > Base_vencimentos > BD_D1 > Power BI.' $script:Colors.Green
 }
 
 function Start-ManualSlaUpdate {
@@ -479,8 +479,8 @@ function Start-ManualSlaUpdate {
     }
     $isoDate = $endDate.ToString('yyyy-MM-dd')
     Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$runner`" -Arquivo `"$($dialog.FileName)`" -DataFinal `"$isoDate`""
-    Write-Terminal "SLA manual iniciado: XLSX escolhido > BD_D1 > filtro $dateText > revisão." $script:Colors.Green
-    Show-OCoffeeMessage "Atualização manual do SLA iniciada.`r`n`r`nA tabela BD_D1 será atualizada e a revisão abrirá ao final."
+    Write-Terminal "SLA manual iniciado: XLSX escolhido > BD_D1 > filtro $dateText > Power BI." $script:Colors.Green
+    Show-OCoffeeMessage "Atualização manual do SLA iniciada.`r`n`r`nA tabela BD_D1 será atualizada e o Power BI será salvo ao final."
 }
 
 function Review-LatestPartial {
@@ -841,7 +841,7 @@ foreach($percent in @(33.33,33.34,33.33)){[void]$actionGrid.ColumnStyles.Add((Ne
 $dashboard.Controls.Add($actionGrid)
 $quickButtons = @(
     (New-Button $actionGrid '[▶] ATUALIZAR PARCIAL AGORA' 0 0 315 58 { Start-MainUpdate } $script:Colors.Green 'Baixa o JMS, atualiza o Power BI e abre a revisão do WhatsApp.'),
-    (New-Button $actionGrid '[◆] ATUALIZAR SLA DIÁRIO' 0 0 315 58 { Start-SlaUpdate } $script:Colors.Gold 'Executa o SLA e abre a revisão do Feishu.'),
+    (New-Button $actionGrid '[◆] ATUALIZAR SLA DIÁRIO' 0 0 315 58 { Start-SlaUpdate } $script:Colors.Gold 'Atualiza o SLA no Power BI sem captura ou envio.'),
     (New-Button $actionGrid '[✓] REVISAR ÚLTIMA PARCIAL' 0 0 315 58 { Review-LatestPartial } $script:Colors.Cyan 'Abre novamente a última imagem sem enviar automaticamente.')
 )
 for($i=0;$i -lt $quickButtons.Count;$i++){$quickButtons[$i].Dock='Fill';$quickButtons[$i].Margin=New-Object Windows.Forms.Padding(0,0,$(if($i -lt 2){14}else{0}),0);$actionGrid.SetColumn($quickButtons[$i],$i)}
@@ -948,7 +948,7 @@ $script:AutomationToggleButton = New-Button $automation '[■] PAUSAR AUTOMAÇÃ
 [void](New-Button $automation 'WHATSAPP WEB' 838 224 174 46 { Start-Process 'https://web.whatsapp.com/' } $script:Colors.Green)
 [void](New-Label $automation 'RELATÓRIOS' 18 314 400 28 12 $script:Colors.Cyan ([Drawing.FontStyle]::Bold))
 [void](New-Button $automation 'REVISAR ÚLTIMA PARCIAL' 18 356 235 50 { Review-LatestPartial } $script:Colors.Cyan)
-[void](New-Button $automation 'SLA — PLANILHA MANUAL' 271 356 235 50 { Start-ManualSlaUpdate } $script:Colors.Gold 'Escolhe o XLSX Entrega realizada (Lista), atualiza a BD_D1 e abre a revisão do SLA.')
+[void](New-Button $automation 'SLA — PLANILHA MANUAL' 271 356 235 50 { Start-ManualSlaUpdate } $script:Colors.Gold 'Escolhe o XLSX Entrega realizada (Lista) e atualiza a BD_D1 no Power BI.')
 [void](New-Button $automation 'ABRIR PASTA DE PRINTS' 524 356 235 50 { if(Test-Path $script:ReportPath){Start-Process explorer.exe -ArgumentList ('"{0}"' -f $script:ReportPath)} } $script:Colors.Cyan)
 [void](New-Button $automation 'ABRIR LOG COMPLETO' 777 356 235 50 { $p=Join-Path (Get-Paths).LogDir 'atualizacao.log';if(Test-Path $p){Start-Process notepad.exe -ArgumentList ('"{0}"' -f $p)}else{Show-OCoffeeMessage 'O log ainda não foi criado.'} } $script:Colors.Muted)
 [void](New-Label $automation 'EXPEDIDO, MAS NÃO CHEGOU — SOMENTE O LÍDER INICIA' 18 438 650 28 12 $script:Colors.Red ([Drawing.FontStyle]::Bold))

@@ -19,7 +19,7 @@ if (-not $script:InstanceCreated) {
 
 $script:Root = 'C:\oCoffe'
 $script:ConfigPath = Join-Path $script:Root 'config\gestao-kpi.json'
-$script:Version = '1.8.7'
+$script:Version = '1.8.9'
 if (Test-Path -LiteralPath $script:ConfigPath) {
     try {
         $versionConfig = Get-Content -LiteralPath $script:ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -74,6 +74,11 @@ function Get-MainTask { Get-ScheduledTask -TaskName $script:MainTaskName -ErrorA
 function Get-SlaTask { Get-ScheduledTask -TaskName $script:SlaTaskName -ErrorAction SilentlyContinue }
 
 function Set-AutomationState([bool]$Enabled) {
+    $config = Read-OCoffeeConfig
+    if ($Enabled -and [bool](Get-ConfigValue $config 'modoManual' $false)) {
+        Show-OCoffeeMessage 'Esta instalação usa o modo manual. Inicie cada rotina pelos botões da interface.' 'Modo manual' ([Windows.Forms.MessageBoxIcon]::Information)
+        return
+    }
     $tasks = @((Get-MainTask), (Get-SlaTask)) | Where-Object { $_ }
     if ($tasks.Count -eq 0) {
         Show-OCoffeeMessage 'As tarefas automáticas ainda não estão instaladas.' 'Automação' ([Windows.Forms.MessageBoxIcon]::Warning)
@@ -84,7 +89,6 @@ function Set-AutomationState([bool]$Enabled) {
         if ($Enabled) { Enable-ScheduledTask -TaskName $task.TaskName | Out-Null }
         else { Disable-ScheduledTask -TaskName $task.TaskName | Out-Null }
     }
-    $config = Read-OCoffeeConfig
     Set-ConfigValue $config 'automacaoPausada' (-not $Enabled)
     Save-OCoffeeConfig $config
     Write-Terminal $(if($Enabled){'Automação retomada. As rotinas executarão somente nos horários configurados.'}else{'Automação pausada. Nenhuma rotina programada será iniciada.'}) $(if($Enabled){$script:Colors.Green}else{$script:Colors.Gold})

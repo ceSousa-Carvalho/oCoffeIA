@@ -1,6 +1,7 @@
 param(
     [string]$Destino = 'C:\oCoffe',
-    [string]$ProjetoKpi = 'C:\Gestão de KPI_Operacional_v2'
+    [string]$ProjetoKpi = 'C:\Gestão de KPI_Operacional_v2',
+    [switch]$ManualOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -94,7 +95,9 @@ if (-not (Test-Path -LiteralPath $targetPbix) -and -not (Test-Path -LiteralPath 
 }
 
 Write-Step 'Instalando o oCoffeIA e as dependências do navegador'
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installScript -Destino $Destino -ProjetoKpi $ProjetoKpi
+$installArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installScript, '-Destino', $Destino, '-ProjetoKpi', $ProjetoKpi)
+if ($ManualOnly) { $installArguments += '-ManualOnly' }
+& powershell.exe @installArguments
 if ($LASTEXITCODE -ne 0) { throw "A instalação do oCoffeIA terminou com código $LASTEXITCODE." }
 
 $excelAvailable = $null -ne (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe' -ErrorAction SilentlyContinue)

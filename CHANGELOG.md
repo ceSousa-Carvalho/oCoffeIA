@@ -2,6 +2,12 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.9] - 2026-08-31
+
+- Adicionado o instalador `INSTALAR-oCoffeIA-MANUAL.cmd` para uso sem execuções programadas.
+- Mantidos disponíveis os botões de atualização da parcial, SLA, Power BI manual e Expedido.
+- Bloqueada a reativação acidental dos agendamentos em instalações configuradas no modo manual.
+
 ## [1.8.8] - 2026-08-31
 
 - Corrigida a abertura do Centro de Downloads no SLA quando o JMS exibe automaticamente a janela após a exportação.

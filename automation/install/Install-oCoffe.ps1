@@ -1,6 +1,7 @@
 ﻿param(
     [string]$Destino = 'C:\oCoffe',
-    [string]$ProjetoKpi = 'C:\Gestão de KPI_Operacional_v2'
+    [string]$ProjetoKpi = 'C:\Gestão de KPI_Operacional_v2',
+    [switch]$ManualOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -162,10 +163,12 @@ $nomeInformado = Read-Host "Nome exato do grupo WhatsApp [$nomePadrao]"
 $nomeGrupo = if ([string]::IsNullOrWhiteSpace($nomeInformado)) { $nomePadrao } else { $nomeInformado.Trim() }
 
 $horariosAtuais = @($existingConfig.horariosAtualizacao) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
-$textoAtual = if ($horariosAtuais.Count -gt 0) { $horariosAtuais -join ', ' } else { 'sem execução automática' }
-$horariosInformados = Read-Host "Horários diários, separados por vírgula (Enter para $textoAtual)"
-$horarios = @($horariosAtuais)
-if (-not [string]::IsNullOrWhiteSpace($horariosInformados)) {
+$horarios = if ($ManualOnly) { @() } else { @($horariosAtuais) }
+if (-not $ManualOnly) {
+    $textoAtual = if ($horariosAtuais.Count -gt 0) { $horariosAtuais -join ', ' } else { 'sem execução automática' }
+    $horariosInformados = Read-Host "Horários diários, separados por vírgula (Enter para $textoAtual)"
+}
+if (-not $ManualOnly -and -not [string]::IsNullOrWhiteSpace($horariosInformados)) {
     $horarios = @()
     $horariosInformados = $horariosInformados.Trim().Trim('(', ')')
     foreach ($item in ($horariosInformados -split '[,;\s]+' | Where-Object { $_ })) {
@@ -189,7 +192,8 @@ $baseDir = Join-Path $ProjetoKpi 'Base_Gestão_de_pedidos_'
 $powerBi = Join-Path $ProjetoKpi 'Gestão de KPI.pbix'
 $logDir = Join-Path $ProjetoKpi 'Automacao'
 $config = [ordered]@{
-    versao = '1.8.7'
+    versao = '1.8.9'
+    modoManual = [bool]$ManualOnly
     jmsUrl = if ($existingConfig.jmsUrl) { [string]$existingConfig.jmsUrl } else { 'https://jmsbr.jtjms-br.com/index' }
     chrome = $chromeDetectado
     jmsBrowser = $chromeDetectado
@@ -212,7 +216,7 @@ $config = [ordered]@{
     nomeGrupoWhatsApp = $nomeGrupo
     intervaloMinutos = 60
     horariosAtualizacao = $horarios
-    automacaoPausada = if ($null -ne $existingConfig.automacaoPausada) { [bool]$existingConfig.automacaoPausada } else { $false }
+    automacaoPausada = if ($ManualOnly) { $true } elseif ($null -ne $existingConfig.automacaoPausada) { [bool]$existingConfig.automacaoPausada } else { $false }
     mensagem = if ($existingConfig.mensagem) { [string]$existingConfig.mensagem } else { "@all Segue a parcial das {horario}.`n`nAtualização gerada pelo Assistente oCoffeIA" }
     whatsappResponsavel = $whatsappResponsavel
     alertaDesempenhoAtivo = if ($null -ne $existingConfig.alertaDesempenhoAtivo) { [bool]$existingConfig.alertaDesempenhoAtivo } else { [bool]$whatsappResponsavel }
@@ -273,13 +277,24 @@ Register-ScheduledTask @mainTaskParameters | Out-Null
 if ([bool]$config.automacaoPausada) { Disable-ScheduledTask -TaskName 'JMS - Atualizar Gestão KPI' | Out-Null }
 
 $slaAction=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f $orquestradorSlaDestino)
-$slaTrigger=New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact([string]$config.slaHorario,'HH:mm',[Globalization.CultureInfo]::InvariantCulture))
-Register-ScheduledTask -TaskName 'JMS - Atualizar SLA' -Action $slaAction -Trigger $slaTrigger -Settings $settings -Description 'Atualiza o SLA uma vez ao dia no Power BI, sem captura ou envio.' -Force|Out-Null
+$slaTaskParameters = @{
+    TaskName = 'JMS - Atualizar SLA'
+    Action = $slaAction
+    Settings = $settings
+    Description = 'Atualiza o SLA no Power BI, sem captura ou envio.'
+    Force = $true
+}
+if (-not $ManualOnly) {
+    $slaTaskParameters.Trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact([string]$config.slaHorario,'HH:mm',[Globalization.CultureInfo]::InvariantCulture))
+}
+Register-ScheduledTask @slaTaskParameters | Out-Null
+if ($ManualOnly) { Disable-ScheduledTask -TaskName 'JMS - Atualizar SLA' | Out-Null }
 
 Write-Host 'oCoffe instalado com sucesso.' -ForegroundColor Green
 Write-Host "Script: $processoDestino"
 Write-Host "Configuração local: $configFile"
 Write-Host "Agendamento: $(if ($horarios.Count) { $horarios -join ', ' } else { 'sem execução automática; configure pela interface' })"
+if ($ManualOnly) { Write-Host 'Modo manual: todas as rotinas são iniciadas exclusivamente pelos botões.' -ForegroundColor Green }
 Write-Host 'Comando: abra um novo PowerShell e digite ocoffe ajuda'
 Write-Host 'Interface: use o atalho oCoffeIA na Área de Trabalho'
 Write-Host 'O envio ao WhatsApp somente ocorre após revisar a captura e clicar em Confirmar e enviar.'

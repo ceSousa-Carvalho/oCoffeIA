@@ -22,6 +22,10 @@ Assistente local para Windows que automatiza o fluxo operacional JMS → XLSX �
 4. Informe o PBIX, o grupo do WhatsApp e os horários quando solicitado.
 5. Faça login no JMS e no WhatsApp na primeira utilização.
 
+### Instalação manual
+
+Execute `INSTALAR-oCoffeIA-MANUAL.cmd` para instalar o aplicativo sem horários automáticos. Nesse modo, parcial, SLA, Power BI e Expedido são iniciados exclusivamente pelos botões da interface.
+
 Node.js, Chrome, Power BI e as dependências do navegador são verificados pelo instalador. Perfis, cookies, tokens, planilhas operacionais e o PBIX não são publicados no GitHub.
 
 ## Dados locais

@@ -40,6 +40,15 @@ async function clickVisibleText(page, text, exact = true) {
   await target.click();
 }
 
+async function getDownloadDialog(page) {
+  let dialog = page.locator('.el-dialog__wrapper:visible').last();
+  if (await dialog.isVisible().catch(() => false)) return dialog;
+  await clickVisibleText(page, 'Centro de download', false);
+  dialog = page.locator('.el-dialog__wrapper:visible').last();
+  await dialog.waitFor({ state: 'visible', timeout: 30000 });
+  return dialog;
+}
+
 async function setDateRange(page, start, end) {
   async function setLabeledDate(labelText, value) {
     const label = await firstVisible(page.getByText(labelText, { exact: true }), `O campo ${labelText}`);
@@ -105,9 +114,7 @@ async function setDateRange(page, start, end) {
     await page.waitForTimeout(5000);
     await page.locator('.el-loading-mask:visible').waitFor({ state: 'hidden', timeout: 60000 }).catch(() => {});
     log(`SLA consultado no JMS: ${start} até ${end}; sem filtro de Base de entrega.`);
-    await clickVisibleText(page, 'Centro de download', false);
-    let dialog = page.locator('.el-dialog__wrapper:visible').last();
-    await dialog.waitFor({ state: 'visible', timeout: 30000 });
+    let dialog = await getDownloadDialog(page);
     let row = null;
 
     async function findCompletedRow(minimumTime) {
@@ -130,9 +137,7 @@ async function setDateRange(page, start, end) {
     const exportStarted = new Date();
     await toolbar.nth(1).click();
     await page.waitForTimeout(2500);
-    await clickVisibleText(page, 'Centro de download', false);
-    dialog = page.locator('.el-dialog__wrapper:visible').last();
-    await dialog.waitFor({ state: 'visible', timeout: 30000 });
+    dialog = await getDownloadDialog(page);
     const deadline = Date.now() + 15 * 60 * 1000;
     while (Date.now() < deadline) {
       row = await findCompletedRow(new Date(exportStarted.getTime() - 5000));

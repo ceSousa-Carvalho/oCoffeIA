@@ -2,6 +2,11 @@
 
 Este projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [1.8.8] - 2026-08-31
+
+- Corrigida a abertura do Centro de Downloads no SLA quando o JMS exibe automaticamente a janela após a exportação.
+- Evitado o clique duplicado que era bloqueado pela própria janela e encerrava o fluxo por timeout.
+
 ## [1.8.7] - 2026-08-28
 
 - Restaurada a data final do SLA no JMS para ontem (D-1), mantendo o mesmo dia no filtro do Power BI.
